@@ -15,8 +15,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-full flex flex-col bg-[#f8fafc]">
         <header className="bg-navy text-white px-6 py-3 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <span className="text-teal font-bold text-lg tracking-wide">i</span>
-            <span className="font-bold text-sm tracking-widest uppercase">FAB</span>
+            <span className="font-bold text-base tracking-widest">
+              <span className="text-teal">i</span>FAB
+            </span>
             <span className="text-white/30 mx-2">|</span>
             <span className="text-white/80 text-sm">Masterclass Agentic AI · Giornata 2</span>
           </div>
