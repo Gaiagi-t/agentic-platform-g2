@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Agentic AI for Business — Piattaforma Giornata 2
 
-## Getting Started
+Workshop platform per la Masterclass IFAB "Agentic AI for Business" — Giornata 2: *From Insight to Action*.
 
-First, run the development server:
+## Step del workshop
+
+| # | Route | Contenuto |
+|---|---|---|
+| 1 | `/portfolio` | Process Portfolio — 3 processi + matrice 2x2 impatto/difficoltà |
+| 2 | `/mapping` | Mappatura AS-IS → TO-BE con analisi AI (Claude) |
+| 3 | `/prompt-lab` | System Prompt Lab con test live in streaming |
+| 4 | `/roadmap` | Roadmap Sprint 0-3m / 3-12m / 12-24m + Export PDF |
+
+I dati di ogni partecipante vengono salvati in **localStorage** — rimangono sul browser, nessun dato inviato a server esterni ad eccezione delle chiamate AI.
+
+## Setup locale
 
 ```bash
+git clone https://github.com/Gaiagi-t/agentic-platform-g2
+cd agentic-platform-g2
+npm install
+cp env.example .env.local
+# Inserisci ANTHROPIC_API_KEY in .env.local
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Apri `http://localhost:3000`
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deploy su Vercel
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Vai su [vercel.com](https://vercel.com) → **Add New Project** → importa `agentic-platform-g2`
+2. Nella sezione **Environment Variables** aggiungi:
+   ```
+   ANTHROPIC_API_KEY = sk-ant-...
+   ```
+3. Clicca **Deploy**
 
-## Learn More
+Le API routes richiedono un runtime Node.js — Vercel le gestisce nativamente con Next.js.
 
-To learn more about Next.js, take a look at the following resources:
+## Variabili d'ambiente
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Variabile | Dove ottenerla |
+|---|---|
+| `ANTHROPIC_API_KEY` | [console.anthropic.com](https://console.anthropic.com) → API Keys |
