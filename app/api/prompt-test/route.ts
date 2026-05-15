@@ -1,6 +1,6 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(request: Request) {
   const { systemPrompt, testMessage } = await request.json();
@@ -9,24 +9,24 @@ export async function POST(request: Request) {
     return new Response("Prompt e messaggio di test sono obbligatori", { status: 400 });
   }
 
-  const stream = await client.messages.stream({
-    model: "claude-sonnet-4-6",
+  // eslint-disable-next-line @typescript-eslint/await-thenable
+  const stream = await client.chat.completions.create({
+    model: "gpt-4o",
     max_tokens: 1024,
-    system: systemPrompt,
-    messages: [{ role: "user", content: testMessage }],
+    stream: true,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: testMessage },
+    ],
   });
 
   const encoder = new TextEncoder();
   const readable = new ReadableStream({
     async start(controller) {
       try {
-        for await (const event of stream) {
-          if (
-            event.type === "content_block_delta" &&
-            event.delta.type === "text_delta"
-          ) {
-            controller.enqueue(encoder.encode(event.delta.text));
-          }
+        for await (const chunk of stream) {
+          const text = chunk.choices[0]?.delta?.content ?? "";
+          if (text) controller.enqueue(encoder.encode(text));
         }
       } finally {
         controller.close();

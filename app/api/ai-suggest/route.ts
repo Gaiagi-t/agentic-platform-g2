@@ -1,6 +1,6 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(request: Request) {
   const { processName, processDescription, steps, painPoints } = await request.json();
@@ -37,19 +37,23 @@ Rispondi SOLO con un oggetto JSON valido (nessun testo fuori dal JSON) con quest
 }`;
 
   try {
-    const msg = await client.messages.create({
-      model: "claude-sonnet-4-6",
+    const completion = await client.chat.completions.create({
+      model: "gpt-4o",
       max_tokens: 1024,
-      system:
-        "Sei un esperto di agentic AI e process automation. Analizzi processi aziendali e suggerisci come agentificarli. " +
-        "Rispondi sempre e solo con JSON valido, senza markdown, senza spiegazioni fuori dal JSON.",
-      messages: [{ role: "user", content: userPrompt }],
+      messages: [
+        {
+          role: "system",
+          content:
+            "Sei un esperto di agentic AI e process automation. Analizzi processi aziendali e suggerisci come agentificarli. " +
+            "Rispondi sempre e solo con JSON valido, senza markdown, senza spiegazioni fuori dal JSON.",
+        },
+        { role: "user", content: userPrompt },
+      ],
     });
 
-    const text = msg.content[0].type === "text" ? msg.content[0].text : "";
+    const text = completion.choices[0]?.message?.content ?? "";
     const clean = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    const parsed = JSON.parse(clean);
-    return Response.json(parsed);
+    return Response.json(JSON.parse(clean));
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Errore sconosciuto";
     return Response.json({ error: msg }, { status: 500 });

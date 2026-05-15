@@ -1,6 +1,6 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(request: Request) {
   const { name, description } = await request.json();
@@ -27,14 +27,16 @@ Rispondi SOLO con JSON valido (nessun testo fuori dal JSON):
 }`;
 
   try {
-    const msg = await client.messages.create({
-      model: "claude-sonnet-4-6",
+    const completion = await client.chat.completions.create({
+      model: "gpt-4o",
       max_tokens: 256,
-      system: "Rispondi sempre e solo con JSON valido, senza markdown, senza testo aggiuntivo.",
-      messages: [{ role: "user", content: prompt }],
+      messages: [
+        { role: "system", content: "Rispondi sempre e solo con JSON valido, senza markdown, senza testo aggiuntivo." },
+        { role: "user", content: prompt },
+      ],
     });
 
-    const text = msg.content[0].type === "text" ? msg.content[0].text : "";
+    const text = completion.choices[0]?.message?.content ?? "";
     const clean = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
     return Response.json(JSON.parse(clean));
   } catch (e: unknown) {
