@@ -22,11 +22,19 @@ const DEMO_ANALYSIS: AIAnalysis = {
   input: "Nome azienda, email/richiesta iniziale del prospect",
   output: "Scheda qualifica con score 1-10, executive summary, punti di forza, red flags e next action",
   autonomia: "Supervised",
+  approccio: "Augmentation",
   score: 8,
   rischi: ["Qualità dati web variabile per aziende piccole", "GDPR sulla raccolta automatica dati prospect", "Resistenza adoption dai sales rep senior"],
   fattibilita: "Alta fattibilità tecnica: dati accessibili via web, pattern chiaro e ripetibile. Media complessità organizzativa per change management.",
   timeline: "2–3 mesi",
   quick_win: "Agente che ricerca automaticamente l'azienda su web e produce un 1-pager in 60 secondi tramite GPT-4o + Make.com",
+  confronto: [
+    { dimensione: "Ruolo / Responsabilità", asis: "Sales rep ricerca e compila manualmente ogni lead", tobe: "Agente esegue la ricerca, rep valida e approva il risultato" },
+    { dimensione: "Strumenti", asis: "Google, LinkedIn, Salesforce, fogli Excel", tobe: "AI agent + Make.com + Salesforce auto-popolato" },
+    { dimensione: "Velocità / Efficienza", asis: "90 minuti per lead", tobe: "60 secondi per lead" },
+    { dimensione: "Qualità / Precisione", asis: "Variabile, dipende dall'esperienza del singolo rep", tobe: "Consistente, basata su dati strutturati e aggiornati" },
+    { dimensione: "Carico di lavoro", asis: "Alto, ripetitivo, low-value per i rep", tobe: "Ridotto: il rep si concentra su relazione e chiusura" },
+  ],
 };
 
 type ChatMsg = { role: "user" | "assistant"; content: string };
@@ -406,6 +414,35 @@ export default function MappingPage() {
             </div>
           </div>
 
+          {/* Approccio toggle */}
+          <div className="mb-4">
+            <p className="text-xs font-bold text-slate uppercase mb-2">Approccio</p>
+            <div className="flex gap-2">
+              {(["Sostituzione", "Augmentation"] as const).map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => setAnalysis({ ...analysis, approccio: opt })}
+                  className={`px-4 py-1.5 rounded-full text-sm font-semibold border transition-colors ${
+                    analysis.approccio === opt
+                      ? opt === "Sostituzione"
+                        ? "bg-amber-500 border-amber-500 text-white"
+                        : "bg-teal border-teal text-white"
+                      : "bg-white border-slate-200 text-slate hover:border-primary"
+                  }`}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+            {analysis.approccio === "Sostituzione" && (
+              <div className="mt-2 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-sm text-amber-800">
+                <span className="shrink-0 mt-0.5">⚠️</span>
+                <span>Per un primo pilota considera <strong>Augmentation</strong>: l&apos;AI affianca il team senza sostituirlo, riducendo i rischi di adoption e permettendo correzioni in corsa.</span>
+              </div>
+            )}
+          </div>
+
           {/* Vision — mic */}
           <div className="mb-3">
             <p className="text-xs font-bold text-slate uppercase mb-1">Visione TO-BE</p>
@@ -455,6 +492,56 @@ export default function MappingPage() {
               <p className="text-xs font-bold text-slate uppercase mb-1">Quick Win suggerito</p>
               <input value={analysis.quick_win} onChange={(e) => setAnalysis({ ...analysis, quick_win: e.target.value })} className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-primary" />
             </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── Confronto AS-IS → TO-BE ─────────────────────────────────── */}
+      {analysis && analysis.confronto && analysis.confronto.length > 0 && (
+        <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 mb-5">
+          <h2 className="font-bold text-navy mb-1">Confronto AS-IS → TO-BE</h2>
+          <p className="text-xs text-slate mb-4">Come cambia il processo con l&apos;AI — le celle sono modificabili</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b-2 border-slate-200">
+                  <th className="text-left text-xs font-bold text-slate uppercase pb-2 pr-3 w-[26%]">Dimensione</th>
+                  <th className="text-left text-xs font-bold text-slate uppercase pb-2 px-3 w-[37%]">AS-IS</th>
+                  <th className="text-left text-xs font-bold text-teal uppercase pb-2 pl-3 w-[37%]">TO-BE con AI</th>
+                </tr>
+              </thead>
+              <tbody>
+                {analysis.confronto.map((row, i) => (
+                  <tr key={i} className="border-b border-slate-100 last:border-0">
+                    <td className="py-2 pr-3 font-semibold text-navy text-xs align-top pt-3">{row.dimensione}</td>
+                    <td className="py-1.5 px-3">
+                      <textarea
+                        value={row.asis}
+                        onChange={(e) => {
+                          const updated = [...analysis.confronto];
+                          updated[i] = { ...updated[i], asis: e.target.value };
+                          setAnalysis({ ...analysis, confronto: updated });
+                        }}
+                        rows={2}
+                        className="w-full border border-slate-200 rounded px-2 py-1 text-xs resize-none focus:outline-none focus:border-primary"
+                      />
+                    </td>
+                    <td className="py-1.5 pl-3">
+                      <textarea
+                        value={row.tobe}
+                        onChange={(e) => {
+                          const updated = [...analysis.confronto];
+                          updated[i] = { ...updated[i], tobe: e.target.value };
+                          setAnalysis({ ...analysis, confronto: updated });
+                        }}
+                        rows={2}
+                        className="w-full border border-teal/30 rounded px-2 py-1 text-xs resize-none focus:outline-none focus:border-teal bg-teal/5"
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </section>
       )}
