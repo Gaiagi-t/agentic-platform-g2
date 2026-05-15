@@ -1,33 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react"; // useCallback used for checkSession
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { getState, setState } from "@/lib/store";
 import type { ASISStep, AIAnalysis, Mapping } from "@/lib/types";
-
-// ── Speech Recognition types ──────────────────────────────────────────
-interface SRAlternative { transcript: string }
-interface SRResult { isFinal: boolean; [i: number]: SRAlternative }
-interface SRResultList { length: number; [i: number]: SRResult }
-interface SREvent extends Event { resultIndex: number; results: SRResultList }
-interface SpeechRecognitionInstance extends EventTarget {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  start(): void;
-  stop(): void;
-  abort(): void;
-  onstart: ((ev: Event) => void) | null;
-  onend:   ((ev: Event) => void) | null;
-  onerror: ((ev: Event) => void) | null;
-  onresult: ((ev: SREvent) => void) | null;
-}
-declare global {
-  interface Window {
-    SpeechRecognition: new () => SpeechRecognitionInstance;
-    webkitSpeechRecognition: new () => SpeechRecognitionInstance;
-  }
-}
 
 // ── Constants ──────────────────────────────────────────────────────────
 const PATTERNS = ["Single Agent", "Routing", "Parallelizzazione", "Orchestrazione", "HITL by Design"];
@@ -62,7 +38,7 @@ function welcomeMessage(processName: string, analysis: AIAnalysis): ChatMsg {
   };
 }
 
-// ── Minimal markdown renderer ──────────────────────────────────────────
+// ── Chat bubble renderer ───────────────────────────────────────────────
 function ChatBubble({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
   const parts = content.split(/(\*\*[^*]+\*\*|✏️[^\n]+)/g);
   return (
@@ -81,22 +57,37 @@ function ChatBubble({ content, isStreaming }: { content: string; isStreaming?: b
   );
 }
 
-// ── Mic icon button ────────────────────────────────────────────────────
-function MicBtn({ active, onClick, size = "sm" }: { active: boolean; onClick: () => void; size?: "sm" | "md" }) {
+// ── Mic button ─────────────────────────────────────────────────────────
+function MicBtn({
+  active, loading, onClick, size = "sm",
+}: {
+  active: boolean; loading: boolean; onClick: () => void; size?: "sm" | "md";
+}) {
   const sz = size === "md" ? "w-9 h-9" : "w-7 h-7";
   const ico = size === "md" ? "w-4 h-4" : "w-3.5 h-3.5";
   return (
     <button
       type="button"
       onClick={onClick}
-      title={active ? "Clicca per fermare la registrazione" : "Clicca per parlare"}
+      title={loading ? "Trascrizione in corso…" : active ? "Clicca per fermare e trascrivere" : "Clicca per registrare"}
       className={`shrink-0 ${sz} rounded-full flex items-center justify-center transition-all ${
-        active ? "bg-red-500 text-white shadow-sm" : "bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600"
+        loading
+          ? "bg-primary/20 text-primary cursor-wait"
+          : active
+          ? "bg-red-500 text-white shadow-sm animate-pulse"
+          : "bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600"
       }`}
     >
-      <svg viewBox="0 0 24 24" fill="currentColor" className={ico}>
-        <path d="M12 14a3 3 0 003-3V5a3 3 0 00-6 0v6a3 3 0 003 3zm-1 1.93V18H9a1 1 0 000 2h6a1 1 0 000-2h-2v-2.07A5.002 5.002 0 0017 11a1 1 0 00-2 0 3 3 0 01-6 0 1 1 0 00-2 0 5.002 5.002 0 004 4.93z" />
-      </svg>
+      {loading ? (
+        <svg className={`${ico} animate-spin`} viewBox="0 0 24 24" fill="none">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 24 24" fill="currentColor" className={ico}>
+          <path d="M12 14a3 3 0 003-3V5a3 3 0 00-6 0v6a3 3 0 003 3zm-1 1.93V18H9a1 1 0 000 2h6a1 1 0 000-2h-2v-2.07A5.002 5.002 0 0017 11a1 1 0 00-2 0 3 3 0 01-6 0 1 1 0 00-2 0 5.002 5.002 0 004 4.93z" />
+        </svg>
+      )}
     </button>
   );
 }
@@ -119,12 +110,13 @@ export default function MappingPage() {
   const [chatStreaming, setChatStreaming] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
-  // Voice — one active field at a time
+  // Voice — MediaRecorder + Whisper
   const [recordingField, setRecordingField] = useState<string | null>(null);
-  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
-  const finalTextRef   = useRef(""); // accumulated final transcript
-  const setValueRef    = useRef<((v: string) => void) | null>(null); // stable ref to current field setter
-  const sessionRef     = useRef(0); // session ID to ignore stale onend after field switch
+  const [transcribingField, setTranscribingField] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef   = useRef<Blob[]>([]);
+  const setValueRef      = useRef<((v: string) => void) | null>(null);
+  const initialValueRef  = useRef(""); // field value at recording start
 
   const checkSession = useCallback(() => {
     fetch("/api/session").then((r) => r.json()).then((d) => setLocked(d.step < 2)).catch(() => {});
@@ -151,74 +143,64 @@ export default function MappingPage() {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
 
-  // ── Generic mic toggle ──────────────────────────────────────────────
-  // Uses abort() (not stop()) so no unexpected onresult fires after user stops.
-  // setValueRef avoids stale closure bugs. sessionRef prevents stale onend
-  // from clearing state when a new field starts immediately after.
-  const startMic = (fieldId: string, currentValue: string, setValue: (v: string) => void) => {
-    // Same field → toggle off: abort and commit accumulated text
-    if (recordingField === fieldId) {
-      recognitionRef.current?.abort();
-      recognitionRef.current = null;
-      setRecordingField(null);
-      // finalTextRef already has up-to-date final text (updated in onresult)
-      setValue(finalTextRef.current.trim());
-      return;
-    }
-
-    // Stop any active recording on a different field
-    if (recognitionRef.current) {
-      recognitionRef.current.abort();
-      recognitionRef.current = null;
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) {
-      alert("Il tuo browser non supporta il riconoscimento vocale.\nUsa Chrome o Edge.");
-      return;
-    }
-
-    // Bump session ID — stale onend callbacks will see a different ID and no-op
-    const mySession = ++sessionRef.current;
-
-    const recognition = new SR() as SpeechRecognitionInstance;
-    recognition.lang = "it-IT";
-    recognition.continuous = true;
-    recognition.interimResults = false; // only final results → no interim confusion
-
-    finalTextRef.current = currentValue ? currentValue.trimEnd() + " " : "";
-    setValueRef.current = setValue;
-
-    recognition.onresult = (event: SREvent) => {
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        finalTextRef.current += event.results[i][0].transcript + " ";
-      }
-      setValueRef.current?.(finalTextRef.current.trim());
-    };
-
-    recognition.onend = () => {
-      if (sessionRef.current !== mySession) return; // stale — another field took over
-      setRecordingField(null);
-      recognitionRef.current = null;
-      // Commit final text (handles natural end / browser auto-stop)
-      setValueRef.current?.(finalTextRef.current.trim());
-    };
-
-    recognition.onerror = (ev: Event) => {
-      const err = (ev as Event & { error?: string }).error;
-      if (err === "aborted") return; // expected when we call abort()
-      if (sessionRef.current !== mySession) return;
-      setRecordingField(null);
-      recognitionRef.current = null;
-    };
-
-    recognitionRef.current = recognition;
-    setRecordingField(fieldId);
-    recognition.start();
+  // ── Mic: MediaRecorder + Whisper ────────────────────────────────────
+  const stopAndTranscribe = (fieldId: string) => {
+    mediaRecorderRef.current?.stop(); // triggers onstop → sends to Whisper
+    setRecordingField(null);
+    setTranscribingField(fieldId);
   };
 
-  // ── Helpers ─────────────────────────────────────────────────────────
+  const toggleMic = async (fieldId: string, currentValue: string, setValue: (v: string) => void) => {
+    // Stop active recording (same or different field)
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      stopAndTranscribe(recordingField ?? fieldId);
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+      setValueRef.current = setValue;
+      initialValueRef.current = currentValue;
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        // Release mic
+        stream.getTracks().forEach((t) => t.stop());
+
+        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        const formData = new FormData();
+        formData.append("audio", blob, "recording.webm");
+
+        try {
+          const res = await fetch("/api/transcribe", { method: "POST", body: formData });
+          const data = await res.json();
+          if (data.text) {
+            const base = initialValueRef.current?.trim();
+            const full = base ? base + " " + data.text : data.text;
+            setValueRef.current?.(full.trim());
+          }
+        } catch {
+          // transcription failed silently — field unchanged
+        } finally {
+          setTranscribingField(null);
+          mediaRecorderRef.current = null;
+        }
+      };
+
+      mediaRecorderRef.current = mediaRecorder;
+      setRecordingField(fieldId);
+      mediaRecorder.start();
+    } catch {
+      alert("Non riesco ad accedere al microfono.\nVerifica i permessi del browser e usa HTTPS.");
+    }
+  };
+
+  // ── Helpers ──────────────────────────────────────────────────────────
   const updateStep = (i: number, field: keyof ASISStep, val: string) =>
     setSteps((prev) => prev.map((s, idx) => (idx === i ? { ...s, [field]: val } : s)));
 
@@ -300,14 +282,8 @@ export default function MappingPage() {
     );
   }
 
-  // Recording status hint shown at top of active section
-  const RecordingHint = ({ fieldId }: { fieldId: string }) =>
-    recordingField === fieldId ? (
-      <span className="inline-flex items-center gap-1 text-[10px] text-red-500 font-medium ml-2">
-        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-        Sto ascoltando… clicca 🎤 per fermare
-      </span>
-    ) : null;
+  const isRec  = (id: string) => recordingField === id;
+  const isLoad = (id: string) => transcribingField === id;
 
   return (
     <div className="max-w-3xl mx-auto w-full px-4 py-8">
@@ -325,6 +301,17 @@ export default function MappingPage() {
         </button>
       </div>
 
+      {/* Recording / transcribing status bar */}
+      {(recordingField || transcribingField) && (
+        <div className={`flex items-center gap-2 mb-4 px-4 py-2.5 rounded-xl text-sm font-medium ${recordingField ? "bg-red-50 border border-red-200 text-red-700" : "bg-primary/5 border border-primary/20 text-primary"}`}>
+          {recordingField ? (
+            <><span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />Registrazione in corso — clicca il microfono rosso per fermare e trascrivere</>
+          ) : (
+            <><svg className="w-4 h-4 animate-spin shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Whisper sta trascrivendo…</>
+          )}
+        </div>
+      )}
+
       {/* ── AS-IS ───────────────────────────────────────────────────── */}
       <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 mb-5">
         <h2 className="font-bold text-navy mb-1">AS-IS — Come funziona oggi</h2>
@@ -332,29 +319,22 @@ export default function MappingPage() {
 
         <div className="flex flex-col gap-3">
           {steps.map((step, i) => (
-            <div key={i} className={`border rounded-lg p-3 bg-slate-50 ${recordingField?.startsWith(`step-${i}`) ? "border-red-200" : "border-slate-100"}`}>
+            <div key={i} className={`border rounded-lg p-3 bg-slate-50 transition-colors ${isRec(`step-${i}-nome`) ? "border-red-200 bg-red-50/30" : "border-slate-100"}`}>
               <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center">
-                  <span className="text-xs font-bold text-slate uppercase">Step {i + 1}</span>
-                  <RecordingHint fieldId={`step-${i}-nome`} />
-                </div>
+                <span className="text-xs font-bold text-slate uppercase">Step {i + 1}</span>
                 {steps.length > 1 && (
                   <button onClick={() => setSteps((prev) => prev.filter((_, idx) => idx !== i))} className="text-xs text-red-400 hover:text-red-600">Rimuovi</button>
                 )}
               </div>
               <div className="grid grid-cols-2 gap-2">
-                {/* Nome — with mic */}
                 <div className="col-span-2 flex items-center gap-1.5">
                   <input
                     placeholder="Nome del passaggio"
                     value={step.nome}
                     onChange={(e) => updateStep(i, "nome", e.target.value)}
-                    className={`flex-1 border rounded px-2 py-1.5 text-sm focus:outline-none focus:border-primary transition-colors ${recordingField === `step-${i}-nome` ? "border-red-300 bg-red-50/30" : "border-slate-200"}`}
+                    className="flex-1 border border-slate-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-primary"
                   />
-                  <MicBtn
-                    active={recordingField === `step-${i}-nome`}
-                    onClick={() => startMic(`step-${i}-nome`, step.nome, (v) => updateStep(i, "nome", v))}
-                  />
+                  <MicBtn active={isRec(`step-${i}-nome`)} loading={isLoad(`step-${i}-nome`)} onClick={() => toggleMic(`step-${i}-nome`, step.nome, (v) => updateStep(i, "nome", v))} />
                 </div>
                 <input placeholder="Chi esegue" value={step.chi} onChange={(e) => updateStep(i, "chi", e.target.value)} className="border border-slate-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-primary" />
                 <input placeholder="Strumenti usati" value={step.strumenti} onChange={(e) => updateStep(i, "strumenti", e.target.value)} className="border border-slate-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-primary" />
@@ -367,21 +347,18 @@ export default function MappingPage() {
           </button>
         </div>
 
-        {/* Pain points — with mic */}
+        {/* Pain points */}
         <div className="mt-4">
-          <div className="flex items-center mb-1">
-            <label className="text-xs font-bold text-slate uppercase">Pain points principali</label>
-            <RecordingHint fieldId="painPoints" />
-          </div>
+          <label className="text-xs font-bold text-slate uppercase block mb-1">Pain points principali</label>
           <div className="flex items-start gap-1.5">
             <textarea
               placeholder="Cosa non funziona? Dove si perde tempo? Quali errori si ripetono?"
               value={painPoints}
               onChange={(e) => setPainPoints(e.target.value)}
               rows={3}
-              className={`flex-1 border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:border-primary transition-colors ${recordingField === "painPoints" ? "border-red-300 bg-red-50/30" : "border-slate-200"}`}
+              className={`flex-1 border rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:border-primary transition-colors ${isRec("painPoints") ? "border-red-300 bg-red-50/30" : "border-slate-200"}`}
             />
-            <MicBtn active={recordingField === "painPoints"} onClick={() => startMic("painPoints", painPoints, setPainPoints)} />
+            <MicBtn active={isRec("painPoints")} loading={isLoad("painPoints")} onClick={() => toggleMic("painPoints", painPoints, setPainPoints)} />
           </div>
         </div>
 
@@ -400,9 +377,7 @@ export default function MappingPage() {
         <section className="bg-white rounded-xl shadow-sm border border-primary/30 p-5 mb-5">
           <div className="flex items-center gap-2 mb-4">
             <span className="bg-teal/10 text-teal text-xs font-bold px-2 py-0.5 rounded">TO-BE — Visione agentificata</span>
-            <span className={`ml-auto text-sm font-bold px-2 py-0.5 rounded-full ${analysis.score >= 7 ? "bg-green-100 text-green-700" : analysis.score >= 5 ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-600"}`}>
-              Score: {analysis.score}/10
-            </span>
+            <span className={`ml-auto text-sm font-bold px-2 py-0.5 rounded-full ${analysis.score >= 7 ? "bg-green-100 text-green-700" : analysis.score >= 5 ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-600"}`}>Score: {analysis.score}/10</span>
           </div>
 
           <div className="grid grid-cols-2 gap-4 mb-4">
@@ -418,20 +393,13 @@ export default function MappingPage() {
             </div>
           </div>
 
-          {/* Vision — with mic */}
+          {/* Vision — mic */}
           <div className="mb-3">
-            <div className="flex items-center mb-1">
-              <p className="text-xs font-bold text-slate uppercase">Visione TO-BE</p>
-              <RecordingHint fieldId="tobe-vision" />
-            </div>
+            <p className="text-xs font-bold text-slate uppercase mb-1">Visione TO-BE</p>
             <div className="flex items-start gap-1.5">
-              <textarea
-                value={analysis.vision}
-                onChange={(e) => setAnalysis({ ...analysis, vision: e.target.value })}
-                rows={2}
-                className={`flex-1 border rounded px-2 py-1.5 text-sm resize-none focus:outline-none focus:border-primary transition-colors ${recordingField === "tobe-vision" ? "border-red-300 bg-red-50/30" : "border-slate-200"}`}
-              />
-              <MicBtn active={recordingField === "tobe-vision"} onClick={() => startMic("tobe-vision", analysis.vision, (v) => setAnalysis((a) => a ? { ...a, vision: v } : a))} />
+              <textarea value={analysis.vision} onChange={(e) => setAnalysis({ ...analysis, vision: e.target.value })} rows={2}
+                className={`flex-1 border rounded px-2 py-1.5 text-sm resize-none focus:outline-none focus:border-primary transition-colors ${isRec("tobe-vision") ? "border-red-300 bg-red-50/30" : "border-slate-200"}`} />
+              <MicBtn active={isRec("tobe-vision")} loading={isLoad("tobe-vision")} onClick={() => toggleMic("tobe-vision", analysis.vision, (v) => setAnalysis((a) => a ? { ...a, vision: v } : a))} />
             </div>
           </div>
 
@@ -446,20 +414,13 @@ export default function MappingPage() {
             </div>
           </div>
 
-          {/* Fattibilità — with mic */}
+          {/* Fattibilità — mic */}
           <div className="mb-3">
-            <div className="flex items-center mb-1">
-              <p className="text-xs font-bold text-slate uppercase">Fattibilità</p>
-              <RecordingHint fieldId="tobe-fatt" />
-            </div>
+            <p className="text-xs font-bold text-slate uppercase mb-1">Fattibilità</p>
             <div className="flex items-start gap-1.5">
-              <textarea
-                value={analysis.fattibilita}
-                onChange={(e) => setAnalysis({ ...analysis, fattibilita: e.target.value })}
-                rows={2}
-                className={`flex-1 border rounded px-2 py-1.5 text-sm resize-none focus:outline-none focus:border-primary transition-colors ${recordingField === "tobe-fatt" ? "border-red-300 bg-red-50/30" : "border-slate-200"}`}
-              />
-              <MicBtn active={recordingField === "tobe-fatt"} onClick={() => startMic("tobe-fatt", analysis.fattibilita, (v) => setAnalysis((a) => a ? { ...a, fattibilita: v } : a))} />
+              <textarea value={analysis.fattibilita} onChange={(e) => setAnalysis({ ...analysis, fattibilita: e.target.value })} rows={2}
+                className={`flex-1 border rounded px-2 py-1.5 text-sm resize-none focus:outline-none focus:border-primary transition-colors ${isRec("tobe-fatt") ? "border-red-300 bg-red-50/30" : "border-slate-200"}`} />
+              <MicBtn active={isRec("tobe-fatt")} loading={isLoad("tobe-fatt")} onClick={() => toggleMic("tobe-fatt", analysis.fattibilita, (v) => setAnalysis((a) => a ? { ...a, fattibilita: v } : a))} />
             </div>
           </div>
 
@@ -501,16 +462,13 @@ export default function MappingPage() {
 
           {chatOpen && (
             <div className="border-t border-slate-100">
-              {/* Messages */}
               <div className="h-72 overflow-y-auto px-4 py-4 flex flex-col gap-3">
                 {chatMessages.map((msg, i) => {
                   const isLast = i === chatMessages.length - 1;
                   const isStreaming = isLast && msg.role === "assistant" && chatStreaming;
                   return (
                     <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                      {msg.role === "assistant" && (
-                        <span className="w-6 h-6 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs shrink-0 mr-2 mt-0.5">AI</span>
-                      )}
+                      {msg.role === "assistant" && <span className="w-6 h-6 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xs shrink-0 mr-2 mt-0.5">AI</span>}
                       <div className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${msg.role === "user" ? "bg-navy text-white rounded-br-sm" : "bg-slate-100 text-navy rounded-bl-sm"}`}>
                         {msg.content ? <ChatBubble content={msg.content} isStreaming={isStreaming} /> : (
                           <span className="flex gap-1 py-0.5">
@@ -526,37 +484,27 @@ export default function MappingPage() {
                 <div ref={chatBottomRef} />
               </div>
 
-              {/* Input */}
               <div className="border-t border-slate-100 px-4 py-3 bg-slate-50/50">
-                {recordingField === "chat" && (
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse shrink-0" />
-                    <span className="text-xs text-red-600 font-medium">Registrazione in corso — clicca il microfono per fermare</span>
-                  </div>
-                )}
                 <div className="flex items-center gap-2">
-                  <MicBtn size="md" active={recordingField === "chat"} onClick={() => startMic("chat", chatInput, setChatInput)} />
+                  <MicBtn size="md" active={isRec("chat")} loading={isLoad("chat")} onClick={() => toggleMic("chat", chatInput, setChatInput)} />
                   <input
                     type="text"
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
-                    placeholder={recordingField === "chat" ? "Parla ora…" : "Scrivi o usa il microfono…"}
+                    placeholder={isRec("chat") ? "Registrazione in corso… clicca 🎤 per fermare" : "Scrivi o usa il microfono…"}
                     disabled={chatStreaming}
                     className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary bg-white disabled:opacity-50"
                   />
-                  <button
-                    onClick={sendChat}
-                    disabled={!chatInput.trim() || chatStreaming}
-                    className="shrink-0 w-9 h-9 rounded-full bg-primary text-white flex items-center justify-center hover:bg-deepblue disabled:bg-slate-200 disabled:text-slate transition-colors"
-                  >
+                  <button onClick={sendChat} disabled={!chatInput.trim() || chatStreaming}
+                    className="shrink-0 w-9 h-9 rounded-full bg-primary text-white flex items-center justify-center hover:bg-deepblue disabled:bg-slate-200 disabled:text-slate transition-colors">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
                     </svg>
                   </button>
                 </div>
                 <p className="text-[10px] text-slate/40 mt-2 text-center">
-                  Clicca 🎤 per parlare · Clicca di nuovo per fermare · Invio per inviare
+                  Clicca 🎤 per parlare · Clicca di nuovo per fermare · Whisper trascrive · Invio per inviare
                 </p>
               </div>
             </div>
