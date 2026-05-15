@@ -4,6 +4,9 @@ export interface Process {
   description: string;
   impatto: "alto" | "basso";
   facilita: "facile" | "difficile";
+  analyzed?: boolean;
+  aiExplanation?: string;
+  manuallyMoved?: boolean;
 }
 
 export interface ASISStep {
