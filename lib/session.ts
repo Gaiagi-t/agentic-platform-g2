@@ -3,13 +3,19 @@
 
 const KV_KEY = "workshop_step";
 
+function redisEnv(): { url: string; token: string } | null {
+  // Supports Upstash via Vercel Marketplace and legacy Vercel KV env var names
+  const url = process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN;
+  return url && token ? { url, token } : null;
+}
+
 async function kvGet(): Promise<number | null> {
-  const url = process.env.KV_REST_API_URL;
-  const token = process.env.KV_REST_API_TOKEN;
-  if (!url || !token) return null;
+  const env = redisEnv();
+  if (!env) return null;
   try {
-    const res = await fetch(`${url}/get/${KV_KEY}`, {
-      headers: { Authorization: `Bearer ${token}` },
+    const res = await fetch(`${env.url}/get/${KV_KEY}`, {
+      headers: { Authorization: `Bearer ${env.token}` },
       cache: "no-store",
     });
     if (!res.ok) return null;
@@ -21,15 +27,14 @@ async function kvGet(): Promise<number | null> {
 }
 
 async function kvSet(step: number): Promise<void> {
-  const url = process.env.KV_REST_API_URL;
-  const token = process.env.KV_REST_API_TOKEN;
-  if (!url || !token) return;
+  const env = redisEnv();
+  if (!env) return;
   try {
-    await fetch(`${url}/set/${KV_KEY}/${step}`, {
-      headers: { Authorization: `Bearer ${token}` },
+    await fetch(`${env.url}/set/${KV_KEY}/${step}`, {
+      headers: { Authorization: `Bearer ${env.token}` },
     });
   } catch {
-    // KV write failed — in-memory value still updated below
+    // Redis write failed — in-memory value still updated below
   }
 }
 
