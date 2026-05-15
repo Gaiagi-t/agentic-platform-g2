@@ -133,35 +133,33 @@ export default function PortfolioPage() {
         ))}
       </div>
 
-      {/* 2x2 Matrix */}
+      {/* 2x2 Matrix — read-only visualization */}
       {filledProcesses.length > 0 && (
-        <div className="mb-8">
+        <div className="mb-6">
           <h2 className="text-sm font-bold text-navy uppercase tracking-wide mb-3">Dove l&apos;AI può generare impatto nel tuo lavoro?</h2>
-          <div className="relative">
-            <div className="flex justify-center mb-1">
-              <span className="text-xs text-slate/70 font-medium">← Facile · · · Difficoltà implementazione · · · Difficile →</span>
+          <div className="flex gap-0">
+            <div className="flex items-center justify-center w-6 shrink-0">
+              <span className="text-xs text-slate/70 font-medium" style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}>Impatto</span>
             </div>
-            <div className="flex gap-0">
-              <div className="flex items-center justify-center w-6 shrink-0">
-                <span className="text-xs text-slate/70 font-medium" style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}>Impatto</span>
+            <div className="flex-1">
+              <div className="flex justify-center mb-1">
+                <span className="text-xs text-slate/70 font-medium">← Facile · · · Difficoltà implementazione · · · Difficile →</span>
               </div>
-              <div className="grid grid-cols-2 gap-2 flex-1">
+              <div className="grid grid-cols-2 gap-2">
                 {QUADRANTS.map((q) => {
                   const inQ = filledProcesses.filter((p) => p.impatto === q.impatto && p.facilita === q.facilita);
                   return (
-                    <div key={q.key} className={`${q.bg} ${q.border} border-2 rounded-xl p-4 min-h-[140px] flex flex-col`}>
+                    <div key={q.key} className={`${q.bg} ${q.border} border-2 rounded-xl p-4 min-h-[120px] flex flex-col`}>
                       <div className="mb-2">
                         <p className="font-bold text-sm text-navy">{q.label}</p>
-                        <p className="text-xs text-slate">Impatto: {q.impatto === "alto" ? "Alto" : "Basso"} · Facilità: {q.facilita === "facile" ? "Facile" : "Difficile"}</p>
                         <span className="inline-block mt-1 text-[10px] font-bold px-2 py-0.5 bg-white/70 rounded border border-slate-200 text-slate-600">{q.action}</span>
                       </div>
                       <div className="flex flex-col gap-1 mt-auto">
                         {inQ.map((p) => (
-                          <button key={p.id} onClick={() => setSelected(p.id)} className={`flex items-center gap-2 px-2 py-1 rounded-lg border text-xs font-medium transition-all ${selected === p.id ? "bg-navy text-white border-navy" : `${q.badge} border hover:opacity-80`}`}>
-                            <span className={`w-2 h-2 rounded-full shrink-0 ${selected === p.id ? "bg-teal" : q.dot}`} />
+                          <div key={p.id} className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium ${q.badge} border`}>
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${q.dot}`} />
                             {p.name}
-                            {selected === p.id && <span className="ml-auto">✓</span>}
-                          </button>
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -169,9 +167,57 @@ export default function PortfolioPage() {
                 })}
               </div>
             </div>
-            {filledProcesses.length > 0 && !selected && (
-              <p className="text-xs text-primary mt-2 text-center">Clicca su un processo nella matrice per selezionarlo</p>
-            )}
+          </div>
+        </div>
+      )}
+
+      {/* Process selection — separate from matrix */}
+      {filledProcesses.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-sm font-bold text-navy uppercase tracking-wide mb-1">Quale processo vuoi agentificare oggi?</h2>
+          <p className="text-xs text-slate mb-4">Scegli liberamente — il consigliato è il Quick Win, ma puoi lavorare su qualsiasi processo.</p>
+          <div className="flex flex-col gap-3">
+            {filledProcesses.map((p) => {
+              const q = QUADRANTS.find((q) => q.impatto === p.impatto && q.facilita === p.facilita)!;
+              const isQuickWin = p.impatto === "alto" && p.facilita === "facile";
+              const isSelected = selected === p.id;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => setSelected(p.id)}
+                  className={`w-full text-left rounded-xl border-2 p-4 transition-all ${
+                    isSelected
+                      ? "border-navy bg-navy/5 shadow-md"
+                      : "border-slate-200 bg-white hover:border-primary/40 hover:shadow-sm"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    {/* Radio indicator */}
+                    <div className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                      isSelected ? "border-navy bg-navy" : "border-slate-300"
+                    }`}>
+                      {isSelected && <span className="w-2 h-2 rounded-full bg-teal" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`font-semibold text-sm ${isSelected ? "text-navy" : "text-slate-800"}`}>{p.name}</span>
+                        {/* Quadrant badge */}
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${q.badge}`}>{q.label}</span>
+                        {/* Recommended badge */}
+                        {isQuickWin && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500 text-white">
+                            ✦ Consigliato
+                          </span>
+                        )}
+                      </div>
+                      {p.description && (
+                        <p className="text-xs text-slate mt-1 leading-snug">{p.description}</p>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
