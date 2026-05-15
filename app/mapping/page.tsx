@@ -149,7 +149,7 @@ export default function MappingPage() {
     setSteps(DEMO_STEPS);
     setPainPoints(DEMO_PAIN);
     setAnalysis(DEMO_ANALYSIS);
-    setChatMessages([welcomeMessage("Qualifica Lead", DEMO_ANALYSIS)]);
+    setChatMessages([welcomeMessage(processName || "Qualifica Lead", DEMO_ANALYSIS)]);
     setChatOpen(true);
   };
 
