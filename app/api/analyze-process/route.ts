@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { openaiErrorResponse } from "@/lib/openai-error";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -40,6 +41,6 @@ Rispondi SOLO con JSON valido (nessun testo fuori dal JSON):
     const clean = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
     return Response.json(JSON.parse(clean));
   } catch (e: unknown) {
-    return Response.json({ error: e instanceof Error ? e.message : "Errore" }, { status: 500 });
+    return openaiErrorResponse(e);
   }
 }

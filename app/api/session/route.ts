@@ -1,7 +1,7 @@
 import { getSessionStep, setSessionStep } from "@/lib/session";
 
 export async function GET() {
-  return Response.json({ step: getSessionStep() });
+  return Response.json({ step: await getSessionStep() });
 }
 
 export async function POST(request: Request) {
@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "PIN non valido" }, { status: 401 });
   }
   if (typeof step === "number" && step >= 0 && step <= 4) {
-    setSessionStep(step);
+    await setSessionStep(step);
   }
-  return Response.json({ step: getSessionStep() });
+  return Response.json({ step: await getSessionStep() });
 }

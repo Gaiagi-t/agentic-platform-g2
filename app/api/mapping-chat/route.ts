@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import type { ASISStep, AIAnalysis } from "@/lib/types";
+import { openaiErrorResponse, openaiStreamError } from "@/lib/openai-error";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -55,16 +56,21 @@ Quando suggerisci una modifica specifica a un campo, segnalala con:
 
 Campi modificabili: pattern, vision, input, output, autonomia, rischi, fattibilita, timeline, quick_win`;
 
-  // eslint-disable-next-line @typescript-eslint/await-thenable
-  const stream = await client.chat.completions.create({
-    model: "gpt-4o",
-    max_tokens: 800,
-    stream: true,
-    messages: [
-      { role: "system", content: systemPrompt },
-      ...messages,
-    ],
-  });
+  let stream: AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>;
+  try {
+    // eslint-disable-next-line @typescript-eslint/await-thenable
+    stream = await client.chat.completions.create({
+      model: "gpt-4o",
+      max_tokens: 800,
+      stream: true,
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...messages,
+      ],
+    });
+  } catch (e: unknown) {
+    return openaiErrorResponse(e);
+  }
 
   const encoder = new TextEncoder();
   const readable = new ReadableStream({
@@ -74,6 +80,8 @@ Campi modificabili: pattern, vision, input, output, autonomia, rischi, fattibili
           const text = chunk.choices[0]?.delta?.content ?? "";
           if (text) controller.enqueue(encoder.encode(text));
         }
+      } catch (e: unknown) {
+        controller.enqueue(encoder.encode(openaiStreamError(e)));
       } finally {
         controller.close();
       }

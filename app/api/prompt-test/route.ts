@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { openaiErrorResponse, openaiStreamError } from "@/lib/openai-error";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -9,16 +10,21 @@ export async function POST(request: Request) {
     return new Response("Prompt e messaggio di test sono obbligatori", { status: 400 });
   }
 
-  // eslint-disable-next-line @typescript-eslint/await-thenable
-  const stream = await client.chat.completions.create({
-    model: "gpt-4o",
-    max_tokens: 1024,
-    stream: true,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: testMessage },
-    ],
-  });
+  let stream: AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>;
+  try {
+    // eslint-disable-next-line @typescript-eslint/await-thenable
+    stream = await client.chat.completions.create({
+      model: "gpt-4o",
+      max_tokens: 1024,
+      stream: true,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: testMessage },
+      ],
+    });
+  } catch (e: unknown) {
+    return openaiErrorResponse(e);
+  }
 
   const encoder = new TextEncoder();
   const readable = new ReadableStream({
@@ -28,6 +34,8 @@ export async function POST(request: Request) {
           const text = chunk.choices[0]?.delta?.content ?? "";
           if (text) controller.enqueue(encoder.encode(text));
         }
+      } catch (e: unknown) {
+        controller.enqueue(encoder.encode(openaiStreamError(e)));
       } finally {
         controller.close();
       }
