@@ -16,17 +16,25 @@ export interface ASISStep {
   tempo: string;
 }
 
+export interface ComparisoRow {
+  dimensione: string;
+  asis: string;
+  tobe: string;
+}
+
 export interface AIAnalysis {
   pattern: string;
   vision: string;
   input: string;
   output: string;
   autonomia: string;
+  approccio: "Sostituzione" | "Augmentation";
   score: number;
   rischi: string[];
   fattibilita: string;
   timeline: string;
   quick_win: string;
+  confronto: ComparisoRow[];
 }
 
 export interface Mapping {
