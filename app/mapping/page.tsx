@@ -153,8 +153,10 @@ export default function MappingPage() {
   const startMic = useCallback((fieldId: string, currentValue: string, setValue: (v: string) => void) => {
     // Same field → stop recording, capture any pending interim text
     if (recordingField === fieldId) {
-      const captured = (finalTextRef.current + interimTextRef.current).trim();
-      setValue(captured);
+      // Merge interim INTO finalTextRef BEFORE stopping so onend doesn't overwrite it
+      finalTextRef.current = (finalTextRef.current + interimTextRef.current).trim();
+      interimTextRef.current = "";
+      setValue(finalTextRef.current);
       recognitionRef.current?.stop();
       return;
     }
