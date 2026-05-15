@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react"; // useCallback used for checkSession
 import { useRouter } from "next/navigation";
 import { getState, setState } from "@/lib/store";
 import type { ASISStep, AIAnalysis, Mapping } from "@/lib/types";
@@ -16,6 +16,7 @@ interface SpeechRecognitionInstance extends EventTarget {
   interimResults: boolean;
   start(): void;
   stop(): void;
+  abort(): void;
   onstart: ((ev: Event) => void) | null;
   onend:   ((ev: Event) => void) | null;
   onerror: ((ev: Event) => void) | null;
@@ -122,7 +123,8 @@ export default function MappingPage() {
   const [recordingField, setRecordingField] = useState<string | null>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const finalTextRef   = useRef(""); // accumulated final transcript
-  const interimTextRef = useRef(""); // latest interim transcript (ref to avoid stale closure on stop)
+  const setValueRef    = useRef<((v: string) => void) | null>(null); // stable ref to current field setter
+  const sessionRef     = useRef(0); // session ID to ignore stale onend after field switch
 
   const checkSession = useCallback(() => {
     fetch("/api/session").then((r) => r.json()).then((d) => setLocked(d.step < 2)).catch(() => {});
@@ -150,72 +152,71 @@ export default function MappingPage() {
   }, [chatMessages]);
 
   // ── Generic mic toggle ──────────────────────────────────────────────
-  const startMic = useCallback((fieldId: string, currentValue: string, setValue: (v: string) => void) => {
-    // Same field → stop recording, capture any pending interim text
+  // Uses abort() (not stop()) so no unexpected onresult fires after user stops.
+  // setValueRef avoids stale closure bugs. sessionRef prevents stale onend
+  // from clearing state when a new field starts immediately after.
+  const startMic = (fieldId: string, currentValue: string, setValue: (v: string) => void) => {
+    // Same field → toggle off: abort and commit accumulated text
     if (recordingField === fieldId) {
-      // Merge interim INTO finalTextRef BEFORE stopping so onend doesn't overwrite it
-      finalTextRef.current = (finalTextRef.current + interimTextRef.current).trim();
-      interimTextRef.current = "";
-      setValue(finalTextRef.current);
-      recognitionRef.current?.stop();
+      recognitionRef.current?.abort();
+      recognitionRef.current = null;
+      setRecordingField(null);
+      // finalTextRef already has up-to-date final text (updated in onresult)
+      setValue(finalTextRef.current.trim());
       return;
     }
 
-    // Different field active → stop it first
+    // Stop any active recording on a different field
     if (recognitionRef.current) {
-      recognitionRef.current.stop();
+      recognitionRef.current.abort();
       recognitionRef.current = null;
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const SR: (new () => SpeechRecognitionInstance) | undefined = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) {
-      alert("Il tuo browser non supporta il riconoscimento vocale.\nUsa Chrome o Edge per questa funzione.");
+      alert("Il tuo browser non supporta il riconoscimento vocale.\nUsa Chrome o Edge.");
       return;
     }
 
-    const recognition = new SR();
+    // Bump session ID — stale onend callbacks will see a different ID and no-op
+    const mySession = ++sessionRef.current;
+
+    const recognition = new SR() as SpeechRecognitionInstance;
     recognition.lang = "it-IT";
     recognition.continuous = true;
-    recognition.interimResults = true;
+    recognition.interimResults = false; // only final results → no interim confusion
 
-    // Seed with existing field value (add space separator if non-empty)
     finalTextRef.current = currentValue ? currentValue.trimEnd() + " " : "";
-    interimTextRef.current = "";
+    setValueRef.current = setValue;
 
     recognition.onresult = (event: SREvent) => {
-      let interim = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        if (event.results[i].isFinal) {
-          finalTextRef.current += event.results[i][0].transcript + " ";
-        } else {
-          interim += event.results[i][0].transcript;
-        }
+        finalTextRef.current += event.results[i][0].transcript + " ";
       }
-      interimTextRef.current = interim;
-      // Update the target field live (final + interim visible while speaking)
-      setValue((finalTextRef.current + interim).trim());
+      setValueRef.current?.(finalTextRef.current.trim());
     };
 
     recognition.onend = () => {
+      if (sessionRef.current !== mySession) return; // stale — another field took over
       setRecordingField(null);
       recognitionRef.current = null;
-      // Ensure field shows only final text (drop any residual interim)
-      setValue(finalTextRef.current.trim());
-      interimTextRef.current = "";
+      // Commit final text (handles natural end / browser auto-stop)
+      setValueRef.current?.(finalTextRef.current.trim());
     };
 
-    recognition.onerror = () => {
+    recognition.onerror = (ev: Event) => {
+      const err = (ev as Event & { error?: string }).error;
+      if (err === "aborted") return; // expected when we call abort()
+      if (sessionRef.current !== mySession) return;
       setRecordingField(null);
       recognitionRef.current = null;
-      setValue(finalTextRef.current.trim());
-      interimTextRef.current = "";
     };
 
     recognitionRef.current = recognition;
     setRecordingField(fieldId);
     recognition.start();
-  }, [recordingField]);
+  };
 
   // ── Helpers ─────────────────────────────────────────────────────────
   const updateStep = (i: number, field: keyof ASISStep, val: string) =>
