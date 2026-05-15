@@ -159,7 +159,13 @@ export default function MappingPage() {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+
+      // Pick the best supported format — Whisper accepts webm, ogg, mp4
+      const mimeType = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/ogg", "audio/mp4"]
+        .find((t) => MediaRecorder.isTypeSupported(t)) ?? "";
+      const ext = mimeType.includes("ogg") ? "ogg" : mimeType.includes("mp4") ? "mp4" : "webm";
+
+      const mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
       audioChunksRef.current = [];
       setValueRef.current = setValue;
       initialValueRef.current = currentValue;
@@ -169,12 +175,12 @@ export default function MappingPage() {
       };
 
       mediaRecorder.onstop = async () => {
-        // Release mic
         stream.getTracks().forEach((t) => t.stop());
 
-        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        const actualMime = mediaRecorder.mimeType || mimeType || "audio/webm";
+        const blob = new Blob(audioChunksRef.current, { type: actualMime });
         const formData = new FormData();
-        formData.append("audio", blob, "recording.webm");
+        formData.append("audio", blob, `recording.${ext}`);
 
         try {
           const res = await fetch("/api/transcribe", { method: "POST", body: formData });
@@ -195,8 +201,15 @@ export default function MappingPage() {
       mediaRecorderRef.current = mediaRecorder;
       setRecordingField(fieldId);
       mediaRecorder.start();
-    } catch {
-      alert("Non riesco ad accedere al microfono.\nVerifica i permessi del browser e usa HTTPS.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("denied") || msg.includes("NotAllowed")) {
+        alert("Permesso microfono negato.\nVai nelle impostazioni del browser e consenti l'accesso al microfono per questo sito.");
+      } else if (msg.includes("NotFound") || msg.includes("Requested device not found")) {
+        alert("Nessun microfono trovato.\nCollega un microfono e riprova.");
+      } else {
+        alert("Non riesco ad accedere al microfono.\nAssicurati di usare HTTPS e di aver consentito l'accesso al microfono.");
+      }
     }
   };
 
