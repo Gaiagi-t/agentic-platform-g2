@@ -3,11 +3,11 @@
 import { useState, useEffect, useCallback } from "react";
 
 const STEPS = [
-  { n: 1, title: "Process Portfolio", sub: "Matrice impatto/difficoltà", time: "60 min" },
-  { n: 2, title: "Mappatura AS-IS → TO-BE", sub: "Analisi AI del processo", time: "70 min" },
-  { n: 3, title: "Agentic Design Canvas", sub: "System prompt, tools, guardrails, HITL", time: "40 min" },
-  { n: 4, title: "Scelta del Tool", sub: "Matrice decisionale A–E", time: "20 min" },
-  { n: 5, title: "Roadmap Sprint", sub: "3 fasi + export PDF", time: "45 min" },
+  { n: 1, title: "Process Portfolio", sub: "Matrice impatto/difficoltà" },
+  { n: 2, title: "Mappatura AS-IS → TO-BE", sub: "Analisi AI del processo" },
+  { n: 3, title: "Agentic Design Canvas", sub: "System prompt, tools, guardrails, HITL" },
+  { n: 4, title: "Scelta del Tool", sub: "Matrice decisionale A–E" },
+  { n: 5, title: "Roadmap Sprint", sub: "3 fasi + export PDF" },
 ];
 
 export default function AdminPage() {
@@ -127,7 +127,7 @@ export default function AdminPage() {
                   {isCurrent && <span className="text-[10px] bg-teal text-white px-1.5 py-0.5 rounded-full font-bold">IN CORSO</span>}
                   {isOpen && !isCurrent && <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-bold">APERTO</span>}
                 </div>
-                <p className="text-xs text-slate">{s.sub} · {s.time}</p>
+                <p className="text-xs text-slate">{s.sub}</p>
               </div>
               <div className="flex gap-2 shrink-0">
                 {isOpen ? (

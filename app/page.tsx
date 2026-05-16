@@ -5,11 +5,11 @@ import Link from "next/link";
 import { getParticipant, setParticipant, clearParticipant, resetState } from "@/lib/store";
 
 const STEPS = [
-  { n: 1, href: "/portfolio", title: "Process Portfolio", sub: "Identifica 3 processi e posizionali sulla matrice impatto/difficoltà", time: "60 min", color: "border-teal", badge: "bg-teal" },
-  { n: 2, href: "/mapping", title: "Mappatura AS-IS → TO-BE", sub: "Mappa il processo scelto e lascia che l'AI generi l'analisi agentificata", time: "70 min", color: "border-primary", badge: "bg-primary" },
-  { n: 3, href: "/prompt-lab", title: "Agentic Design Canvas", sub: "Progetta l'agente: system prompt, tools, MCP, memoria, guardrails e HITL", time: "40 min", color: "border-gold", badge: "bg-gold" },
-  { n: 4, href: "/tool-selection", title: "Scelta del Tool", sub: "Identifica il livello di sviluppo giusto per il tuo agente con la matrice decisionale A–E", time: "20 min", color: "border-violet-500", badge: "bg-violet-500" },
-  { n: 5, href: "/roadmap", title: "Roadmap Sprint", sub: "Definisci le 3 fasi di adozione e il tuo commit per i prossimi 30 giorni", time: "45 min", color: "border-deepblue", badge: "bg-deepblue" },
+  { n: 1, href: "/portfolio", title: "Process Portfolio", sub: "Identifica 3 processi e posizionali sulla matrice impatto/difficoltà", color: "border-teal", badge: "bg-teal" },
+  { n: 2, href: "/mapping", title: "Mappatura AS-IS → TO-BE", sub: "Mappa il processo scelto e lascia che l'AI generi l'analisi agentificata", color: "border-primary", badge: "bg-primary" },
+  { n: 3, href: "/prompt-lab", title: "Agentic Design Canvas", sub: "Progetta l'agente: system prompt, tools, MCP, memoria, guardrails e HITL", color: "border-gold", badge: "bg-gold" },
+  { n: 4, href: "/tool-selection", title: "Scelta del Tool", sub: "Identifica il livello di sviluppo giusto per il tuo agente con la matrice decisionale A–E", color: "border-violet-500", badge: "bg-violet-500" },
+  { n: 5, href: "/roadmap", title: "Roadmap Sprint", sub: "Definisci le 3 fasi di adozione e il tuo commit per i prossimi 30 giorni", color: "border-deepblue", badge: "bg-deepblue" },
 ];
 
 export default function Home() {
@@ -154,9 +154,8 @@ export default function Home() {
                   🔒
                 </span>
                 <div className="flex-1">
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
                     <span className="font-semibold text-slate">{s.title}</span>
-                    <span className="text-xs text-slate shrink-0">{s.time}</span>
                   </div>
                   <p className="text-sm text-slate/60 mt-1">In attesa del facilitatore…</p>
                 </div>
@@ -168,9 +167,8 @@ export default function Home() {
                     {s.n}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
                       <span className="font-semibold text-navy">{s.title}</span>
-                      <span className="text-xs text-slate shrink-0">{s.time}</span>
                     </div>
                     <p className="text-sm text-slate mt-1 leading-snug">{s.sub}</p>
                   </div>
