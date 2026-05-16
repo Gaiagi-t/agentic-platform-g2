@@ -33,7 +33,7 @@ export default function RoadmapPage() {
   const [locked, setLocked] = useState(false);
 
   const checkSession = useCallback(() => {
-    fetch("/api/session").then((r) => r.json()).then((d) => setLocked(d.step < 4)).catch(() => {});
+    fetch("/api/session").then((r) => r.json()).then((d) => setLocked(d.step < 5)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -151,7 +151,7 @@ export default function RoadmapPage() {
     <div className="max-w-3xl mx-auto w-full px-4 py-8">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <span className="bg-deepblue text-white text-sm font-bold w-8 h-8 rounded-full flex items-center justify-center">4</span>
+          <span className="bg-deepblue text-white text-sm font-bold w-8 h-8 rounded-full flex items-center justify-center">5</span>
           <div>
             <h1 className="text-xl font-bold text-navy">Roadmap Sprint</h1>
             <p className="text-sm text-slate">Processo: <span className="font-semibold text-navy">{processName || "—"}</span></p>

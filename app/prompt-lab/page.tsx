@@ -304,7 +304,7 @@ export default function PromptLabPage() {
   const save = () => {
     setState({ agenticDesign: design, systemPrompt: design.systemPrompt });
     setSaved(true);
-    setTimeout(() => router.push("/roadmap"), 400);
+    setTimeout(() => router.push("/tool-selection"), 400);
   };
 
   if (locked) {
@@ -546,7 +546,7 @@ export default function PromptLabPage() {
               onClick={save}
               className="px-6 py-2.5 rounded-lg font-semibold text-sm bg-navy text-white hover:bg-deepblue transition-colors"
             >
-              {saved ? "✓ Salvato!" : "Salva e vai alla Roadmap →"}
+              {saved ? "✓ Salvato!" : "Salva e continua →"}
             </button>
           </div>
         </div>

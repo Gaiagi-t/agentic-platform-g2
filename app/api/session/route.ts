@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   if (pin !== adminPin) {
     return Response.json({ error: "PIN non valido" }, { status: 401 });
   }
-  if (typeof step === "number" && step >= 0 && step <= 4) {
+  if (typeof step === "number" && step >= 0 && step <= 5) {
     await setSessionStep(step);
   }
   return Response.json({ step: await getSessionStep() });

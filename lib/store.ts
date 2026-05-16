@@ -15,6 +15,11 @@ const defaults: AppState = {
     scale: emptyPhase(),
     transform: emptyPhase(),
   },
+  toolChoice: {
+    primaryLevel: null,
+    secondaryLevel: null,
+    notes: "",
+  },
   agenticDesign: {
     systemPrompt: "",
     tools: [],

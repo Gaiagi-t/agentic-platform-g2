@@ -53,6 +53,14 @@ export interface RoadmapPhase {
   kpi: string;
 }
 
+export type ToolLevel = "A" | "B" | "C" | "D" | "E";
+
+export interface ToolChoice {
+  primaryLevel: ToolLevel | null;
+  secondaryLevel: ToolLevel | null;
+  notes: string;
+}
+
 export interface AgenticDesign {
   systemPrompt: string;
   tools: string[];
@@ -78,4 +86,5 @@ export interface AppState {
     transform: RoadmapPhase;
   };
   agenticDesign: AgenticDesign;
+  toolChoice: ToolChoice;
 }

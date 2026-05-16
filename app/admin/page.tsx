@@ -5,8 +5,9 @@ import { useState, useEffect, useCallback } from "react";
 const STEPS = [
   { n: 1, title: "Process Portfolio", sub: "Matrice impatto/difficoltà", time: "60 min" },
   { n: 2, title: "Mappatura AS-IS → TO-BE", sub: "Analisi AI del processo", time: "70 min" },
-  { n: 3, title: "System Prompt Lab", sub: "Scrittura e test live", time: "40 min" },
-  { n: 4, title: "Roadmap Sprint", sub: "3 fasi + export PDF", time: "45 min" },
+  { n: 3, title: "Agentic Design Canvas", sub: "System prompt, tools, guardrails, HITL", time: "40 min" },
+  { n: 4, title: "Scelta del Tool", sub: "Matrice decisionale A–E", time: "20 min" },
+  { n: 5, title: "Roadmap Sprint", sub: "3 fasi + export PDF", time: "45 min" },
 ];
 
 export default function AdminPage() {
@@ -98,7 +99,7 @@ export default function AdminPage() {
         <div className="text-right">
           <span className="text-xs text-slate">Step corrente</span>
           <div className="text-2xl font-bold text-navy">
-            {step === 0 ? "—" : step} <span className="text-sm text-slate font-normal">/ 4</span>
+            {step === 0 ? "—" : step} <span className="text-sm text-slate font-normal">/ 5</span>
           </div>
         </div>
       </div>
@@ -155,7 +156,7 @@ export default function AdminPage() {
       {/* Bulk actions */}
       <div className="flex gap-3 mb-4">
         <button
-          onClick={() => send(4)}
+          onClick={() => send(5)}
           disabled={loading}
           className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-teal text-white hover:bg-deepblue transition-colors"
         >
