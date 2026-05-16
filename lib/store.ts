@@ -15,6 +15,18 @@ const defaults: AppState = {
     scale: emptyPhase(),
     transform: emptyPhase(),
   },
+  agenticDesign: {
+    systemPrompt: "",
+    tools: [],
+    toolsCustom: "",
+    mcpServers: "",
+    memorySTM: "",
+    memoryLTM: "",
+    guardrails: [],
+    guardrailsCustom: "",
+    hitlPoints: "",
+    flussiAuto: "",
+  },
 };
 
 function dataKey(name: string): string {

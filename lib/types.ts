@@ -53,6 +53,19 @@ export interface RoadmapPhase {
   kpi: string;
 }
 
+export interface AgenticDesign {
+  systemPrompt: string;
+  tools: string[];
+  toolsCustom: string;
+  mcpServers: string;
+  memorySTM: string;
+  memoryLTM: string;
+  guardrails: string[];
+  guardrailsCustom: string;
+  hitlPoints: string;
+  flussiAuto: string;
+}
+
 export interface AppState {
   processes: Process[];
   selectedProcessId: string | null;
@@ -64,4 +77,5 @@ export interface AppState {
     scale: RoadmapPhase;
     transform: RoadmapPhase;
   };
+  agenticDesign: AgenticDesign;
 }
