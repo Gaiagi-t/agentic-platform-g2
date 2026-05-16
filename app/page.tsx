@@ -7,8 +7,9 @@ import { getParticipant, setParticipant, clearParticipant, resetState } from "@/
 const STEPS = [
   { n: 1, href: "/portfolio", title: "Process Portfolio", sub: "Identifica 3 processi e posizionali sulla matrice impatto/difficoltà", time: "60 min", color: "border-teal", badge: "bg-teal" },
   { n: 2, href: "/mapping", title: "Mappatura AS-IS → TO-BE", sub: "Mappa il processo scelto e lascia che l'AI generi l'analisi agentificata", time: "70 min", color: "border-primary", badge: "bg-primary" },
-  { n: 3, href: "/prompt-lab", title: "System Prompt Lab", sub: "Scrivi il system prompt del tuo agente e testalo live", time: "40 min", color: "border-gold", badge: "bg-gold" },
-  { n: 4, href: "/roadmap", title: "Roadmap Sprint", sub: "Definisci le 3 fasi di adozione e il tuo commit per i prossimi 30 giorni", time: "45 min", color: "border-deepblue", badge: "bg-deepblue" },
+  { n: 3, href: "/prompt-lab", title: "Agentic Design Canvas", sub: "Progetta l'agente: system prompt, tools, MCP, memoria, guardrails e HITL", time: "40 min", color: "border-gold", badge: "bg-gold" },
+  { n: 4, href: "/tool-selection", title: "Scelta del Tool", sub: "Identifica il livello di sviluppo giusto per il tuo agente con la matrice decisionale A–E", time: "20 min", color: "border-violet-500", badge: "bg-violet-500" },
+  { n: 5, href: "/roadmap", title: "Roadmap Sprint", sub: "Definisci le 3 fasi di adozione e il tuo commit per i prossimi 30 giorni", time: "45 min", color: "border-deepblue", badge: "bg-deepblue" },
 ];
 
 export default function Home() {
@@ -139,7 +140,7 @@ export default function Home() {
           </div>
           <h1 className="text-3xl font-bold text-navy mb-2">From Insight to Action</h1>
           <p className="text-slate text-sm max-w-md mx-auto">
-            Quattro blocchi, un artefatto reale: la tua roadmap di adozione agentificata.
+            Cinque blocchi, un artefatto reale: la tua roadmap di adozione agentificata.
             {sessionStep === 0 && " · La sessione non è ancora iniziata."}
           </p>
         </div>
