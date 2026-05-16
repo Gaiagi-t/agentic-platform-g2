@@ -5,42 +5,36 @@ import { useRouter } from "next/navigation";
 import { getState, setState } from "@/lib/store";
 import type { ToolLevel } from "@/lib/types";
 
-// ── Decision tree ─────────────────────────────────────────────────────────
+// ── Decision tree (4 questions → levels A–D) ──────────────────────────────
 
 const QUESTIONS = [
   {
     id: 1,
-    text: "Hai bisogno di scrivere, eseguire o modificare codice sorgente?",
-    hint: "L'agente deve generare o far girare script Python, modificare file, o eseguire codice arbitrario.",
+    text: "Vuoi controllare ogni componente del sistema (memoria, orchestrazione, tool)?",
+    hint: "Vuoi gestire direttamente orchestrazione, memoria, routing tra agenti e ogni chiamata API.",
   },
   {
     id: 2,
-    text: "Vuoi controllare ogni componente del sistema (memoria, orchestrazione, tool)?",
-    hint: "Vuoi gestire direttamente l'orchestrazione, la memoria, il routing tra agenti e ogni chiamata API.",
-  },
-  {
-    id: 3,
     text: "Sei già in un ecosistema cloud specifico (Microsoft / Google / AWS)?",
     hint: "La tua azienda ha contratti enterprise attivi con uno di questi provider.",
   },
   {
-    id: 4,
+    id: 3,
     text: "Hai principalmente bisogno di connettere API e automatizzare processi?",
     hint: "Workflow di integrazione tra sistemi, trigger-action, spostare dati tra piattaforme.",
   },
   {
-    id: 5,
+    id: 4,
     text: "Vuoi massimo controllo sul modello specifico e accesso a feature proprietarie?",
-    hint: "Usare funzionalità esclusive come tool use nativo di Claude, structured output di OpenAI, ecc.",
+    hint: "Funzionalità esclusive come tool use nativo di Claude, structured output di OpenAI, ecc.",
   },
 ];
 
 function getNext(q: number, ans: "si" | "no"): { nextQ: number; result: ToolLevel | null } {
-  if (q === 1) return ans === "si" ? { nextQ: 0, result: "E" } : { nextQ: 2, result: null };
-  if (q === 2) return ans === "si" ? { nextQ: 5, result: null } : { nextQ: 3, result: null };
-  if (q === 3) return ans === "si" ? { nextQ: 0, result: "A" } : { nextQ: 4, result: null };
-  if (q === 4) return ans === "si" ? { nextQ: 0, result: "B" } : { nextQ: 5, result: null };
-  if (q === 5) return { nextQ: 0, result: ans === "si" ? "D" : "C" };
+  if (q === 1) return ans === "si" ? { nextQ: 4, result: null } : { nextQ: 2, result: null };
+  if (q === 2) return ans === "si" ? { nextQ: 0, result: "A" } : { nextQ: 3, result: null };
+  if (q === 3) return ans === "si" ? { nextQ: 0, result: "B" } : { nextQ: 4, result: null };
+  if (q === 4) return { nextQ: 0, result: ans === "si" ? "D" : "C" };
   return { nextQ: 0, result: null };
 }
 
@@ -117,20 +111,6 @@ const LEVELS: Record<ToolLevel, LevelInfo> = {
     idealFor: "Sfruttare al massimo le capacità di un modello specifico: tool use nativo, structured output, streaming avanzato.",
     effort: "Medio",
     control: "Alto",
-  },
-  E: {
-    name: "Agentic Coding Tools",
-    tagline: "AI pair programming per sviluppo custom",
-    border: "border-rose-400",
-    bg: "bg-rose-50",
-    badge: "bg-rose-600 text-white",
-    text: "text-rose-700",
-    tools: ["Cursor", "GitHub Copilot", "Devin", "Claude Code", "Windsurf"],
-    pros: ["Accelera drasticamente la scrittura di codice", "Pair programming AI-powered", "Ideale per build e debug agenti custom"],
-    cons: ["Richiede competenze di sviluppo software", "Non sostituisce decisioni architetturali"],
-    idealFor: "Sviluppatori che costruiscono agenti custom e vogliono velocizzare scrittura, refactoring e debug del codice.",
-    effort: "Medio",
-    control: "Massimo",
   },
 };
 
@@ -286,7 +266,7 @@ export default function ToolSelectionPage() {
 
   const comboKey = primaryLevel && secondaryLevel ? `${primaryLevel}+${secondaryLevel}` : null;
   const comboDesc = comboKey ? COMBOS[comboKey] : null;
-  const otherLevels = (["A", "B", "C", "D", "E"] as ToolLevel[]).filter((l) => l !== primaryLevel);
+  const otherLevels = (["A", "B", "C", "D"] as ToolLevel[]).filter((l) => l !== primaryLevel);
 
   if (locked) {
     return (
@@ -307,7 +287,7 @@ export default function ToolSelectionPage() {
           <div>
             <h1 className="text-xl font-bold text-navy">Scelta del Tool di Sviluppo</h1>
             <p className="text-sm text-slate">
-              Matrice decisionale A–E
+              Matrice decisionale A–D
               {processName && <> · <strong className="text-navy">{processName}</strong></>}
             </p>
           </div>
@@ -384,7 +364,7 @@ export default function ToolSelectionPage() {
       {/* Result */}
       {result && primaryLevel && (
         <>
-          <div className="mb-2 flex items-center gap-2">
+          <div className="mb-2">
             <span className="text-xs font-bold text-navy uppercase">Livello raccomandato</span>
           </div>
           <LevelCard level={primaryLevel} />
@@ -396,7 +376,7 @@ export default function ToolSelectionPage() {
               Nella maggior parte dei progetti enterprise si combinano due livelli
               {comboDesc && <> — <span className="font-semibold text-navy">{comboDesc}</span></>}.
             </p>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 mb-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 mb-3">
               {otherLevels.map((l) => (
                 <LevelCard
                   key={l}
@@ -413,6 +393,14 @@ export default function ToolSelectionPage() {
                 <p className="text-xs text-navy font-medium">{comboDesc}</p>
               </div>
             )}
+          </div>
+
+          {/* Coding tools note */}
+          <div className="mt-3 flex items-start gap-2.5 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+            <span className="text-slate text-base shrink-0">💡</span>
+            <p className="text-xs text-slate leading-relaxed">
+              <strong className="text-navy">Agentic Coding Tools</strong> (Cursor, GitHub Copilot, Claude Code, Windsurf) sono un superplus complementare a qualsiasi livello sceglierai — accelerano la scrittura del codice ma non influenzano la scelta architetturale.
+            </p>
           </div>
 
           {/* Notes */}
@@ -439,12 +427,12 @@ export default function ToolSelectionPage() {
         </>
       )}
 
-      {/* All levels reference — shown before quiz is complete */}
+      {/* Reference panel — shown before quiz is complete */}
       {!result && (
         <div className="mt-4 p-4 bg-navy/5 border border-navy/10 rounded-xl">
-          <p className="text-xs font-bold text-navy uppercase mb-2">I 5 livelli della matrice</p>
-          <div className="grid grid-cols-5 gap-2">
-            {(["A", "B", "C", "D", "E"] as ToolLevel[]).map((l) => {
+          <p className="text-xs font-bold text-navy uppercase mb-2">I 4 livelli della matrice</p>
+          <div className="grid grid-cols-4 gap-2 mb-3">
+            {(["A", "B", "C", "D"] as ToolLevel[]).map((l) => {
               const info = LEVELS[l];
               return (
                 <div key={l} className={`rounded-lg border ${info.border} ${info.bg} p-2 text-center`}>
@@ -454,8 +442,11 @@ export default function ToolSelectionPage() {
               );
             })}
           </div>
-          <p className="text-xs text-slate/50 mt-2">
+          <p className="text-xs text-slate/60 mb-1">
             Pratica: nella maggior parte dei progetti enterprise si combinano due livelli (es. A+D per enterprise conversazionale, B+C per pipeline dati agentica).
+          </p>
+          <p className="text-xs text-slate/50">
+            💡 Gli Agentic Coding Tools sono complementari a qualsiasi livello sceglierai.
           </p>
         </div>
       )}

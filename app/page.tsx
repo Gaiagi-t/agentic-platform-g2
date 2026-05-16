@@ -8,7 +8,7 @@ const STEPS = [
   { n: 1, href: "/portfolio", title: "Process Portfolio", sub: "Identifica 3 processi e posizionali sulla matrice impatto/difficoltà", color: "border-teal", badge: "bg-teal" },
   { n: 2, href: "/mapping", title: "Mappatura AS-IS → TO-BE", sub: "Mappa il processo scelto e lascia che l'AI generi l'analisi agentificata", color: "border-primary", badge: "bg-primary" },
   { n: 3, href: "/prompt-lab", title: "Agentic Design Canvas", sub: "Progetta l'agente: system prompt, tools, MCP, memoria, guardrails e HITL", color: "border-gold", badge: "bg-gold" },
-  { n: 4, href: "/tool-selection", title: "Scelta del Tool", sub: "Identifica il livello di sviluppo giusto per il tuo agente con la matrice decisionale A–E", color: "border-violet-500", badge: "bg-violet-500" },
+  { n: 4, href: "/tool-selection", title: "Scelta del Tool", sub: "Identifica il livello di sviluppo giusto per il tuo agente con la matrice decisionale A–D", color: "border-violet-500", badge: "bg-violet-500" },
   { n: 5, href: "/roadmap", title: "Roadmap Sprint", sub: "Definisci le 3 fasi di adozione e il tuo commit per i prossimi 30 giorni", color: "border-deepblue", badge: "bg-deepblue" },
 ];
 

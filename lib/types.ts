@@ -53,7 +53,7 @@ export interface RoadmapPhase {
   kpi: string;
 }
 
-export type ToolLevel = "A" | "B" | "C" | "D" | "E";
+export type ToolLevel = "A" | "B" | "C" | "D";
 
 export interface ToolChoice {
   primaryLevel: ToolLevel | null;
