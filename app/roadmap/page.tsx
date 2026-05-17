@@ -192,6 +192,7 @@ export default function RoadmapPage() {
     transform: { chi: "", cosa: "", strumento: "", kpi: "" },
   });
   const [commit, setCommit] = useState("");
+  const [saved, setSaved] = useState(false);
   const [exported, setExported] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [locked, setLocked] = useState(false);
@@ -306,7 +307,11 @@ export default function RoadmapPage() {
 
   const loadDemo = () => { setRoadmap(DEMO_ROADMAP); setCommit(DEMO_COMMIT); };
 
-  const save = () => setState({ roadmap: roadmap as { quickWin: RoadmapPhase; scale: RoadmapPhase; transform: RoadmapPhase }, commit30: commit });
+  const save = () => {
+    setState({ roadmap: roadmap as { quickWin: RoadmapPhase; scale: RoadmapPhase; transform: RoadmapPhase }, commit30: commit });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
 
   const exportPDF = async () => {
     save();
@@ -721,8 +726,8 @@ export default function RoadmapPage() {
             <div className="flex items-center justify-between pt-1">
               <a href="/tool-selection" className="text-sm text-slate hover:text-navy">← Scelta del Tool</a>
               <div className="flex gap-3">
-                <button onClick={save} className="px-4 py-2.5 rounded-lg font-semibold text-sm bg-slate-100 text-navy hover:bg-slate-200 transition-colors border border-slate-200">
-                  Salva
+                <button onClick={save} className={`px-4 py-2.5 rounded-lg font-semibold text-sm transition-colors border ${saved ? "bg-green-500 text-white border-green-500" : "bg-slate-100 text-navy hover:bg-slate-200 border-slate-200"}`}>
+                  {saved ? "Salvato!" : "Salva"}
                 </button>
                 <button
                   onClick={exportPDF}
