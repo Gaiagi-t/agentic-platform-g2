@@ -813,10 +813,19 @@ export default function RoadmapPage() {
         wrapText(ctx, s.commit30, c3x, c3y, c3w, 17, 3);
       }
 
+      const pngDataUrl = ic.toDataURL("image/png");
       const link = document.createElement("a");
       link.download = `iFAB_Infografica_${(proc?.name || "Agentic").replace(/\s+/g, "_")}.png`;
-      link.href = ic.toDataURL("image/png");
+      link.href = pngDataUrl;
       link.click();
+
+      // Save to supervisor dashboard (non-blocking)
+      fetch("/api/save-infographic", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ processName: proc?.name || processName, pngDataUrl }),
+      }).catch(() => {});
+
       setExportedInfographic(true);
       setTimeout(() => setExportedInfographic(false), 3000);
     } catch (e: unknown) {
