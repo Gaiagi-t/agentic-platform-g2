@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   try {
     // eslint-disable-next-line @typescript-eslint/await-thenable
     stream = await client.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o-mini",
       max_tokens: 1024,
       stream: true,
       messages: [

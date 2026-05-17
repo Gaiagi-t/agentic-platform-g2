@@ -47,7 +47,7 @@ Rispondi SOLO con un oggetto JSON valido con questa struttura:
 
   try {
     const completion = await client.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o-mini",
       max_tokens: 1800,
       messages: [
         {

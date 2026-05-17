@@ -60,7 +60,7 @@ Campi modificabili: pattern, vision, input, output, autonomia, rischi, fattibili
   try {
     // eslint-disable-next-line @typescript-eslint/await-thenable
     stream = await client.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o-mini",
       max_tokens: 800,
       stream: true,
       messages: [

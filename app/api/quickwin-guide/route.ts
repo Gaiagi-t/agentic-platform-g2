@@ -77,7 +77,7 @@ PATTERN AGENTICO: ${analysis?.pattern || "N/D"}`;
   try {
     // eslint-disable-next-line @typescript-eslint/await-thenable
     stream = await client.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4.1",
       max_tokens: 1800,
       stream: true,
       messages: [

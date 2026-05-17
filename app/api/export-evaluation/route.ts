@@ -64,7 +64,7 @@ Rispondi SOLO con un oggetto JSON valido, senza markdown né testo aggiuntivo:
 
   try {
     const completion = await client.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4.1",
       max_tokens: 700,
       response_format: { type: "json_object" },
       messages: [

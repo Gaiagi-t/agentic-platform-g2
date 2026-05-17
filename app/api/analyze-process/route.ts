@@ -29,7 +29,7 @@ Rispondi SOLO con JSON valido (nessun testo fuori dal JSON):
 
   try {
     const completion = await client.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4.1",
       max_tokens: 256,
       messages: [
         { role: "system", content: "Rispondi sempre e solo con JSON valido, senza markdown, senza testo aggiuntivo." },
