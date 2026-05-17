@@ -173,6 +173,62 @@ function renderRadarCanvas(labels: string[], values: number[]): string {
   return canvas.toDataURL("image/png");
 }
 
+// ─── Infographic helpers ──────────────────────────────────────────────────────
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxW: number, lh: number, maxL = 99): number {
+  if (!text) return y;
+  const words = text.split(" ");
+  let line = "";
+  let drawn = 0;
+  for (const word of words) {
+    const test = line + word + " ";
+    if (ctx.measureText(test).width > maxW && line) {
+      if (drawn >= maxL) return y;
+      ctx.fillText(line.trim(), x, y);
+      line = word + " ";
+      y += lh;
+      drawn++;
+    } else {
+      line = test;
+    }
+  }
+  if (drawn < maxL && line.trim()) ctx.fillText(line.trim(), x, y);
+  return y + lh;
+}
+
+function drawPill(ctx: CanvasRenderingContext2D, label: string, x: number, y: number, bg: string, fg = "#fff"): number {
+  const pad = 10, h = 26;
+  ctx.font = "bold 12px Arial";
+  const w = ctx.measureText(label).width + pad * 2;
+  ctx.fillStyle = bg;
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, 6);
+  ctx.fill();
+  ctx.fillStyle = fg;
+  ctx.textAlign = "left";
+  ctx.fillText(label, x + pad, y + 18);
+  return x + w + 8;
+}
+
+function drawSectionBar(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, w: number, color: string) {
+  ctx.fillStyle = color;
+  ctx.fillRect(x, y, w, 28);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 11px Arial";
+  ctx.textAlign = "left";
+  ctx.fillText(text, x + 12, y + 19);
+  return y + 36;
+}
+
 function ChatBubble({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
   return (
     <span>
@@ -195,6 +251,8 @@ export default function RoadmapPage() {
   const [saved, setSaved] = useState(false);
   const [exported, setExported] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportingInfographic, setExportingInfographic] = useState(false);
+  const [exportedInfographic, setExportedInfographic] = useState(false);
   const [locked, setLocked] = useState(false);
 
   // Roadmap advisor chat
@@ -563,6 +621,208 @@ export default function RoadmapPage() {
     } finally { setExporting(false); }
   };
 
+  const exportInfographic = async () => {
+    save();
+    setExportingInfographic(true);
+    try {
+      const s = getState();
+      const proc = s.processes.find((p) => p.id === s.selectedProcessId);
+      const radarScores = computeRadarScores(s);
+      const radarLabels = ["Fattibilità\nTecnica", "Impatto\nAtteso", "Velocità\nDeploy", "Governance\n& Sicurezza", "Completezza\nProgetto"];
+
+      let evaluation: { valutazione?: string; punti_di_forza?: string[]; rischi?: string[]; raccomandazione?: string } = {};
+      try {
+        const evalRes = await fetch("/api/export-evaluation", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ processName: proc?.name || "", process: proc ? { description: proc.description, impatto: proc.impatto, facilita: proc.facilita } : null, analysis: s.mapping?.tobe ?? null, agenticDesign: s.agenticDesign, toolChoice: s.toolChoice, roadmap: s.roadmap, commit: s.commit30 || "" }),
+        });
+        if (evalRes.ok) evaluation = await evalRes.json();
+      } catch { /* proceed without */ }
+
+      const IW = 1920, IH = 1080;
+      const ic = document.createElement("canvas");
+      ic.width = IW; ic.height = IH;
+      const ctx = ic.getContext("2d");
+      if (!ctx) return;
+
+      const CNAV = "#021f54", CPRI = "#1b98e0", CTEAL = "#25b7d3";
+      const CSLT = "#64748b", CW2 = "#ffffff", CBG = "#f8fafc";
+      const CGOLD = "#f5c842", CVIO = "#6366f1", CDARK = "#1e293b";
+
+      ctx.fillStyle = CBG; ctx.fillRect(0, 0, IW, IH);
+
+      // Header
+      ctx.fillStyle = CNAV; ctx.fillRect(0, 0, IW, 90);
+      ctx.fillStyle = CGOLD; ctx.font = "bold 30px Arial"; ctx.textAlign = "left";
+      ctx.fillText("iFAB", 40, 40);
+      ctx.fillStyle = CW2; ctx.font = "15px Arial";
+      ctx.fillText("Masterclass Agentic AI · Giornata 2", 40, 65);
+      ctx.font = "bold 26px Arial"; ctx.textAlign = "center";
+      ctx.fillText(proc?.name || "Progetto Agentico", 960, 45);
+      ctx.fillStyle = "rgba(255,255,255,0.6)"; ctx.font = "14px Arial";
+      ctx.fillText("Piano di Adozione Agentic AI", 960, 70);
+      ctx.textAlign = "right";
+      ctx.fillText(new Date().toLocaleDateString("it-IT", { day: "2-digit", month: "long", year: "numeric" }), 1880, 55);
+
+      // Footer
+      ctx.fillStyle = CNAV; ctx.fillRect(0, 940, 960, 140);
+      ctx.fillStyle = CPRI; ctx.fillRect(960, 940, 960, 140);
+      ctx.fillStyle = CW2; ctx.font = "bold 14px Arial"; ctx.textAlign = "left";
+      ctx.fillText("PUNTI DI FORZA", 40, 968);
+      ctx.font = "13px Arial";
+      const strengths = evaluation.punti_di_forza ?? [];
+      if (strengths.length > 0) {
+        strengths.slice(0, 3).forEach((pt, i) => {
+          ctx.fillStyle = CTEAL; ctx.fillText("✓", 40, 992 + i * 26);
+          ctx.fillStyle = "rgba(255,255,255,0.9)";
+          ctx.fillText(pt.length > 92 ? pt.slice(0, 92) + "…" : pt, 62, 992 + i * 26);
+        });
+      } else {
+        ctx.fillStyle = "rgba(255,255,255,0.5)";
+        ctx.fillText("Genera la valutazione tramite 'Esporta PDF' per visualizzarla", 40, 990);
+      }
+      ctx.fillStyle = CW2; ctx.font = "bold 14px Arial"; ctx.textAlign = "left";
+      ctx.fillText("RACCOMANDAZIONE AI", 980, 968);
+      if (evaluation.raccomandazione) {
+        ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.font = "14px Arial";
+        wrapText(ctx, evaluation.raccomandazione, 980, 990, 860, 22, 3);
+      } else {
+        ctx.fillStyle = "rgba(255,255,255,0.5)"; ctx.font = "13px Arial";
+        ctx.fillText("Genera la valutazione tramite 'Esporta PDF'", 980, 990);
+      }
+      ctx.fillStyle = "rgba(255,255,255,0.25)"; ctx.font = "11px Arial"; ctx.textAlign = "center";
+      ctx.fillText(`iFAB Agentic Platform · ${new Date().toLocaleDateString("it-IT")}`, 960, 1068);
+
+      // Column dividers
+      ctx.strokeStyle = "#e2e8f0"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(520, 90); ctx.lineTo(520, 940); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(1400, 90); ctx.lineTo(1400, 940); ctx.stroke();
+
+      // === COLUMN 1: Processo + TO-BE + Tool ===
+      const c1x = 40, c1w = 460; let c1y = 106;
+
+      c1y = drawSectionBar(ctx, "PROCESSO", c1x, c1y, c1w, CNAV) + 4;
+      ctx.fillStyle = CDARK; ctx.font = "bold 17px Arial"; ctx.textAlign = "left";
+      ctx.fillText(proc?.name || "—", c1x, c1y); c1y += 22;
+      if (proc?.description) {
+        ctx.fillStyle = CSLT; ctx.font = "13px Arial";
+        c1y = wrapText(ctx, proc.description, c1x, c1y, c1w, 18, 3);
+      }
+      c1y += 4;
+      let px = c1x;
+      if (proc?.impatto) px = drawPill(ctx, proc.impatto === "alto" ? "Alto impatto" : "Basso impatto", px, c1y, proc.impatto === "alto" ? CTEAL : CSLT);
+      if (proc?.facilita) drawPill(ctx, proc.facilita === "facile" ? "Facile" : "Difficile", px, c1y, proc.facilita === "facile" ? "#22c55e" : "#ef4444");
+      c1y += 40;
+
+      if (s.mapping?.tobe) {
+        const tobe = s.mapping.tobe;
+        c1y = drawSectionBar(ctx, "ANALISI TO-BE", c1x, c1y, c1w, CPRI) + 8;
+        const scColor = tobe.score >= 7 ? CTEAL : tobe.score >= 5 ? "#f59e0b" : "#ef4444";
+        px = drawPill(ctx, `Score ${tobe.score}/10`, c1x, c1y, scColor);
+        drawPill(ctx, (tobe.pattern || "—").slice(0, 22), px, c1y, CNAV);
+        c1y += 38;
+        if (tobe.vision) {
+          ctx.fillStyle = CSLT; ctx.font = "bold 11px Arial"; ctx.textAlign = "left";
+          ctx.fillText("VISIONE", c1x, c1y); c1y += 15;
+          ctx.fillStyle = CDARK; ctx.font = "13px Arial";
+          c1y = wrapText(ctx, tobe.vision, c1x, c1y, c1w, 18, 3); c1y += 4;
+        }
+        if (tobe.autonomia) {
+          ctx.fillStyle = CSLT; ctx.font = "bold 11px Arial"; ctx.textAlign = "left";
+          ctx.fillText("AUTONOMIA", c1x, c1y); c1y += 15;
+          ctx.fillStyle = CDARK; ctx.font = "13px Arial";
+          c1y = wrapText(ctx, tobe.autonomia, c1x, c1y, c1w, 18, 2); c1y += 4;
+        }
+      }
+
+      if (s.toolChoice.primaryLevel) {
+        const lvl: Record<string, string> = { A: "Hosted Enterprise", B: "Automation Platforms", C: "Framework OSS", D: "SDK Vendor" };
+        c1y = drawSectionBar(ctx, "TOOL SCELTO", c1x, c1y, c1w, CVIO) + 8;
+        px = drawPill(ctx, `${s.toolChoice.primaryLevel}: ${lvl[s.toolChoice.primaryLevel] || ""}`, c1x, c1y, CVIO);
+        if (s.toolChoice.secondaryLevel) {
+          drawPill(ctx, `+ ${s.toolChoice.secondaryLevel}: ${lvl[s.toolChoice.secondaryLevel] || ""}`, px, c1y, "#8b5cf6");
+        }
+      }
+
+      // === COLUMN 2: Radar + Score boxes ===
+      const c2x = 540, c2w = 840; let c2y = 106;
+      c2y = drawSectionBar(ctx, "PROFILO DI MATURITÀ DEL PROGETTO", c2x, c2y, c2w, CPRI) + 16;
+
+      const radarDataUrl = renderRadarCanvas(radarLabels, radarScores);
+      if (radarDataUrl) {
+        try {
+          const radarImg = await loadImage(radarDataUrl);
+          const cs = 380;
+          ctx.drawImage(radarImg, c2x + (c2w - cs) / 2, c2y, cs, cs);
+          c2y += cs + 16;
+        } catch { c2y += 30; }
+      }
+      const sLbls = ["Fattibilità\nTecnica", "Impatto\nAtteso", "Velocità\nDeploy", "Governance\n& Sic.", "Completezza\nProgetto"];
+      const bw = (c2w - 32) / 5, bh = 72;
+      sLbls.forEach((lbl, i) => {
+        const bx = c2x + i * (bw + 8), sv = radarScores[i];
+        ctx.fillStyle = sv >= 7 ? CTEAL : sv >= 4 ? "#f59e0b" : "#ef4444";
+        ctx.beginPath(); ctx.roundRect(bx, c2y, bw, bh, 8); ctx.fill();
+        ctx.fillStyle = CW2; ctx.font = "bold 24px Arial"; ctx.textAlign = "center";
+        ctx.fillText(`${sv.toFixed(1)}`, bx + bw / 2, c2y + 32);
+        ctx.font = "10px Arial";
+        lbl.split("\n").forEach((part, pi) => ctx.fillText(part, bx + bw / 2, c2y + 48 + pi * 14));
+      });
+
+      // === COLUMN 3: Roadmap ===
+      const c3x = 1420, c3w = 460; let c3y = 106;
+      c3y = drawSectionBar(ctx, "ROADMAP SPRINT", c3x, c3y, c3w, CNAV) + 10;
+
+      const phDefs = [
+        { key: "quickWin" as const, label: "⚡ Quick Win · 0–3 mesi", color: CTEAL },
+        { key: "scale" as const, label: "📈 Scale · 3–12 mesi", color: CPRI },
+        { key: "transform" as const, label: "🔮 Transform · 12–24 mesi", color: CNAV },
+      ];
+      for (const ph of phDefs) {
+        const phase = s.roadmap[ph.key];
+        ctx.fillStyle = ph.color; ctx.fillRect(c3x, c3y, c3w, 26);
+        ctx.fillStyle = CW2; ctx.font = "bold 12px Arial"; ctx.textAlign = "left";
+        ctx.fillText(ph.label, c3x + 10, c3y + 18); c3y += 32;
+        if (phase.cosa) {
+          ctx.fillStyle = CSLT; ctx.font = "bold 10px Arial"; ctx.textAlign = "left";
+          ctx.fillText("COSA", c3x, c3y); c3y += 14;
+          ctx.fillStyle = CDARK; ctx.font = "12px Arial";
+          c3y = wrapText(ctx, phase.cosa, c3x, c3y, c3w, 17, 2); c3y += 2;
+        }
+        if (phase.strumento) {
+          drawPill(ctx, phase.strumento.slice(0, 32), c3x, c3y, ph.color);
+          c3y += 32;
+        }
+        if (phase.kpi) {
+          ctx.fillStyle = CSLT; ctx.font = "bold 10px Arial"; ctx.textAlign = "left";
+          ctx.fillText("KPI", c3x, c3y); c3y += 14;
+          ctx.fillStyle = CDARK; ctx.font = "12px Arial";
+          c3y = wrapText(ctx, phase.kpi, c3x, c3y, c3w, 17, 2); c3y += 2;
+        }
+        c3y += 12;
+      }
+      if (s.commit30) {
+        ctx.fillStyle = "#0f172a"; ctx.fillRect(c3x, c3y, c3w, 26);
+        ctx.fillStyle = CGOLD; ctx.font = "bold 12px Arial"; ctx.textAlign = "left";
+        ctx.fillText("COMMIT 30 GIORNI", c3x + 10, c3y + 18); c3y += 32;
+        ctx.fillStyle = CDARK; ctx.font = "12px Arial";
+        wrapText(ctx, s.commit30, c3x, c3y, c3w, 17, 3);
+      }
+
+      const link = document.createElement("a");
+      link.download = `iFAB_Infografica_${(proc?.name || "Agentic").replace(/\s+/g, "_")}.png`;
+      link.href = ic.toDataURL("image/png");
+      link.click();
+      setExportedInfographic(true);
+      setTimeout(() => setExportedInfographic(false), 3000);
+    } catch (e: unknown) {
+      console.error("Infographic export error:", e);
+    } finally {
+      setExportingInfographic(false);
+    }
+  };
+
   if (locked) {
     return (
       <div className="flex flex-col items-center justify-center flex-1 px-4 text-center">
@@ -736,7 +996,16 @@ export default function RoadmapPage() {
                     exported ? "bg-green-500 text-white" : exporting ? "bg-slate-300 text-slate cursor-not-allowed" : "bg-navy text-white hover:bg-deepblue"
                   }`}
                 >
-                  {exported ? "PDF scaricato!" : exporting ? "Generazione in corso..." : "Esporta PDF"}
+                  {exported ? "PDF scaricato!" : exporting ? "Generazione..." : "Esporta PDF"}
+                </button>
+                <button
+                  onClick={exportInfographic}
+                  disabled={exportingInfographic}
+                  className={`px-6 py-2.5 rounded-lg font-semibold text-sm transition-colors ${
+                    exportedInfographic ? "bg-green-500 text-white" : exportingInfographic ? "bg-slate-300 text-slate cursor-not-allowed" : "bg-primary text-white hover:bg-deepblue"
+                  }`}
+                >
+                  {exportedInfographic ? "Infografica esportata!" : exportingInfographic ? "Generazione..." : "Esporta infografica"}
                 </button>
               </div>
             </div>
