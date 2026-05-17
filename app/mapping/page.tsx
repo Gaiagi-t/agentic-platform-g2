@@ -616,7 +616,7 @@ export default function MappingPage() {
       <div className="flex items-center justify-between">
         <a href="/portfolio" className="text-sm text-slate hover:text-navy">← Portfolio</a>
         <button onClick={save} disabled={!analysis} className={`px-6 py-2.5 rounded-lg font-semibold text-sm transition-colors ${analysis ? "bg-navy text-white hover:bg-deepblue" : "bg-slate-200 text-slate cursor-not-allowed"}`}>
-          Salva e vai al Prompt Lab →
+          Salva e vai all'Agentic Design Canvas →
         </button>
       </div>
     </div>

@@ -27,6 +27,127 @@ const DEMO_COMMIT = "Entro il 20 giugno 2026 avrò testato un prototipo di agent
 
 type ChatMsg = { role: "user" | "assistant"; content: string };
 
+function computeRadarScores(s: ReturnType<typeof getState>): number[] {
+  const tobe = s.mapping?.tobe;
+  const proc = s.processes.find((p) => p.id === s.selectedProcessId);
+  const design = s.agenticDesign;
+  const tc = s.toolChoice;
+
+  const fattibilita = Math.min(10, Math.max(0, tobe?.score ?? 5));
+
+  const impatto = proc?.impatto === "alto"
+    ? Math.min(10, (tobe?.score ?? 5) * 0.5 + 5)
+    : Math.min(10, (tobe?.score ?? 5) * 0.4 + 3);
+
+  const speedBase: Record<string, number> = { A: 7.5, B: 8.5, C: 5.0, D: 6.0 };
+  let velocita = speedBase[tc.primaryLevel ?? ""] ?? 5;
+  if (s.roadmap.quickWin.strumento) velocita = Math.min(10, velocita + 0.5);
+
+  let governance = design.guardrails.length * 1.5;
+  if (design.hitlPoints) governance += 2;
+  if (tc.primaryLevel === "A") governance += 1.5;
+  governance = Math.min(10, Math.max(1, governance));
+
+  const keyFields = [
+    proc?.name, proc?.description,
+    s.mapping?.asis.steps[0]?.nome,
+    tobe?.vision, tobe?.pattern,
+    design.systemPrompt,
+    tc.primaryLevel,
+    s.roadmap.quickWin.chi, s.roadmap.quickWin.cosa,
+    s.roadmap.quickWin.strumento, s.roadmap.quickWin.kpi,
+    s.roadmap.scale.chi, s.roadmap.scale.cosa,
+    s.roadmap.transform.chi, s.roadmap.transform.cosa,
+    s.commit30,
+  ];
+  const completezza = (keyFields.filter(Boolean).length / keyFields.length) * 10;
+
+  return [fattibilita, impatto, velocita, governance, completezza];
+}
+
+function renderRadarCanvas(labels: string[], values: number[]): string {
+  const canvas = document.createElement("canvas");
+  canvas.width = 500;
+  canvas.height = 500;
+  const ctx = canvas.getContext("2d")!;
+  const cx = 250, cy = 250, r = 155;
+  const n = labels.length;
+  const angles = Array.from({ length: n }, (_, i) => (i * 2 * Math.PI) / n - Math.PI / 2);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, 500, 500);
+
+  for (let ring = 1; ring <= 5; ring++) {
+    const fr = (ring / 5) * r;
+    ctx.beginPath();
+    angles.forEach((a, i) => {
+      const x = cx + fr * Math.cos(a), y = cy + fr * Math.sin(a);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+    ctx.strokeStyle = ring === 5 ? "#94a3b8" : "#e2e8f0";
+    ctx.lineWidth = ring === 5 ? 1.5 : 1;
+    ctx.stroke();
+    if (ring % 2 === 0) {
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "11px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(`${ring * 2}`, cx + 5, cy - fr + 13);
+    }
+  }
+
+  angles.forEach((a) => {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + r * Math.cos(a), cy + r * Math.sin(a));
+    ctx.strokeStyle = "#e2e8f0";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  });
+
+  ctx.beginPath();
+  angles.forEach((a, i) => {
+    const fr = (values[i] / 10) * r;
+    const x = cx + fr * Math.cos(a), y = cy + fr * Math.sin(a);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.closePath();
+  ctx.fillStyle = "rgba(27, 152, 224, 0.2)";
+  ctx.fill();
+  ctx.strokeStyle = "#1b98e0";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  angles.forEach((a, i) => {
+    const fr = (values[i] / 10) * r;
+    ctx.beginPath();
+    ctx.arc(cx + fr * Math.cos(a), cy + fr * Math.sin(a), 6, 0, Math.PI * 2);
+    ctx.fillStyle = "#1b98e0";
+    ctx.fill();
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  });
+
+  ctx.textAlign = "center";
+  angles.forEach((a, i) => {
+    const lr = r + 32;
+    const lx = cx + lr * Math.cos(a);
+    const ly = cy + lr * Math.sin(a);
+    const parts = labels[i].split("\n");
+    ctx.font = "bold 13px Arial";
+    ctx.fillStyle = "#021f54";
+    parts.forEach((part, pi) => {
+      ctx.fillText(part, lx, ly + pi * 15 - ((parts.length - 1) * 7.5));
+    });
+    ctx.font = "12px Arial";
+    ctx.fillStyle = "#1b98e0";
+    ctx.fillText(`${values[i].toFixed(1)}/10`, lx, ly + parts.length * 15 - ((parts.length - 1) * 7.5));
+  });
+
+  return canvas.toDataURL("image/png");
+}
+
 function ChatBubble({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
   return (
     <span>
@@ -47,15 +168,14 @@ export default function RoadmapPage() {
   });
   const [commit, setCommit] = useState("");
   const [exported, setExported] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [locked, setLocked] = useState(false);
 
-  // Chat
   const [chatMsgs, setChatMsgs] = useState<ChatMsg[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatStreaming, setChatStreaming] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Full state snapshot for API calls
   const [stateSnap, setStateSnap] = useState<ReturnType<typeof getState> | null>(null);
 
   const checkSession = useCallback(() => {
@@ -153,82 +273,432 @@ export default function RoadmapPage() {
 
   const exportPDF = async () => {
     save();
-    const s = getState();
-    const proc = s.processes.find((p) => p.id === s.selectedProcessId);
-    const { jsPDF } = await import("jspdf");
-    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    const W = 210;
-    const NAVY: [number, number, number] = [2, 31, 84];
-    const TEAL: [number, number, number] = [37, 183, 211];
-    let y = 0;
+    setExporting(true);
+    try {
+      const s = getState();
+      const proc = s.processes.find((p) => p.id === s.selectedProcessId);
 
-    const header = (title: string) => {
-      doc.setFillColor(...NAVY); doc.rect(0, y, W, 18, "F");
-      doc.setTextColor(255, 255, 255); doc.setFontSize(14); doc.setFont("helvetica", "bold");
-      doc.text("iFAB · Masterclass Agentic AI · Giornata 2", 10, y + 7);
-      doc.setFontSize(10); doc.setFont("helvetica", "normal"); doc.text(title, 10, y + 14);
-      y += 24;
-    };
+      const radarScores = computeRadarScores(s);
+      const radarLabels = ["Fattibilità\nTecnica", "Impatto\nAtteso", "Velocità\nDeploy", "Governance\n& Sicurezza", "Completezza\nProgetto"];
+      let radarImg = "";
+      try { radarImg = renderRadarCanvas(radarLabels, radarScores); } catch { /* skip chart if canvas unavailable */ }
 
-    const section = (label: string) => {
-      doc.setFillColor(...TEAL); doc.rect(10, y, W - 20, 7, "F");
-      doc.setTextColor(255, 255, 255); doc.setFontSize(9); doc.setFont("helvetica", "bold");
-      doc.text(label.toUpperCase(), 14, y + 5); y += 10;
-    };
+      let evaluation: { valutazione?: string; punti_di_forza?: string[]; rischi?: string[]; raccomandazione?: string } = {};
+      try {
+        const evalRes = await fetch("/api/export-evaluation", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            processName: proc?.name || "",
+            process: proc ? { description: proc.description, impatto: proc.impatto, facilita: proc.facilita } : null,
+            analysis: s.mapping?.tobe ?? null,
+            agenticDesign: s.agenticDesign,
+            toolChoice: s.toolChoice,
+            roadmap: s.roadmap,
+            commit: s.commit30 || "",
+          }),
+        });
+        if (evalRes.ok) evaluation = await evalRes.json();
+      } catch { /* proceed without evaluation */ }
 
-    const row = (label: string, value: string) => {
-      doc.setTextColor(100, 116, 139); doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.text(label, 14, y); y += 4;
-      doc.setTextColor(30, 41, 59); doc.setFontSize(10);
-      const lines = doc.splitTextToSize(value || "—", W - 28);
-      doc.text(lines, 14, y); y += lines.length * 5 + 4;
-    };
+      const { jsPDF } = await import("jspdf");
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const W = 210;
+      const M = 14;
+      const CW = W - M * 2;
+      const NAVY: [number, number, number] = [2, 31, 84];
+      const TEAL: [number, number, number] = [37, 183, 211];
+      const PRIMARY: [number, number, number] = [27, 152, 224];
+      const SLATE: [number, number, number] = [100, 116, 139];
+      const DARK: [number, number, number] = [30, 41, 59];
+      const VIOLET: [number, number, number] = [99, 102, 241];
+      let y = 0;
+      let pageNum = 1;
+      let subtitle = "";
 
-    header(`Processo: ${proc?.name || "—"}`);
-    section("Processo selezionato");
-    row("Nome", proc?.name || ""); row("Descrizione", proc?.description || "");
-    row("Impatto / Difficoltà", `${proc?.impatto === "alto" ? "Alto" : "Basso"} / ${proc?.facilita === "facile" ? "Facile" : "Difficile"}`);
-    y += 4;
+      const pageHeader = (sub: string) => {
+        doc.setFillColor(...NAVY);
+        doc.rect(0, 0, W, 16, "F");
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "bold");
+        doc.text("iFAB · Masterclass Agentic AI · Giornata 2", M, 7);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7);
+        doc.text(sub, M, 12);
+        doc.setTextColor(...SLATE);
+        doc.text(`${pageNum}`, W - M, 12, { align: "right" });
+        y = 22;
+      };
 
-    if (s.mapping) {
-      section("AS-IS — Passaggi principali");
-      s.mapping.asis.steps.forEach((step, i) => {
-        if (!step.nome) return;
-        doc.setTextColor(30, 41, 59); doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.text(`Step ${i + 1}: ${step.nome}`, 14, y); y += 4;
-        doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(100, 116, 139);
-        if (step.chi) { doc.text(`Chi: ${step.chi}`, 18, y); y += 4; }
-        if (step.strumenti) { doc.text(`Strumenti: ${step.strumenti}`, 18, y); y += 4; }
-      });
-      if (s.mapping.asis.painPoints) row("Pain points", s.mapping.asis.painPoints);
-      y += 4;
-      if (s.mapping.tobe) {
-        section("TO-BE — Visione agentificata");
-        row("Pattern agentico", s.mapping.tobe.pattern); row("Score fattibilità", `${s.mapping.tobe.score}/10`);
-        row("Visione", s.mapping.tobe.vision); row("Input agente", s.mapping.tobe.input);
-        row("Output agente", s.mapping.tobe.output); row("Timeline", s.mapping.tobe.timeline);
-        row("Rischi", s.mapping.tobe.rischi.join(", "));
+      const newPage = (sub: string) => {
+        doc.addPage();
+        pageNum++;
+        subtitle = sub;
+        pageHeader(sub);
+      };
+
+      const checkPage = (needed: number) => {
+        if (y + needed > 280) newPage(subtitle);
+      };
+
+      const sectionBar = (label: string, color: [number, number, number] = TEAL) => {
+        checkPage(14);
+        doc.setFillColor(...color);
+        doc.rect(M, y, CW, 7, "F");
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "bold");
+        doc.text(label.toUpperCase(), M + 3, y + 5);
+        y += 10;
+      };
+
+      const labelValue = (label: string, value: string, maxLines = 15) => {
+        if (!value) return;
+        checkPage(14);
+        doc.setTextColor(...SLATE);
+        doc.setFontSize(7.5);
+        doc.setFont("helvetica", "normal");
+        doc.text(label, M, y);
+        y += 3.5;
+        doc.setTextColor(...DARK);
+        doc.setFontSize(9);
+        const allLines = doc.splitTextToSize(value, CW);
+        const lines: string[] = allLines.slice(0, maxLines);
+        lines.forEach((line: string) => {
+          checkPage(5);
+          doc.text(line, M, y);
+          y += 4.5;
+        });
+        if (allLines.length > maxLines) {
+          doc.setFontSize(7.5);
+          doc.setTextColor(...SLATE);
+          doc.text("[... testo troncato]", M, y);
+          y += 4;
+        }
+        y += 2;
+      };
+
+      // ─── PAGE 1: PROCESSO + AS-IS ───
+      subtitle = `Processo: ${proc?.name || "—"}`;
+      pageHeader(subtitle);
+
+      sectionBar("Processo Selezionato");
+      labelValue("Nome del processo", proc?.name || "");
+      labelValue("Descrizione", proc?.description || "");
+      labelValue("Impatto / Difficoltà", `${proc?.impatto === "alto" ? "Alto" : "Basso"} / ${proc?.facilita === "facile" ? "Facile" : "Difficile"}`);
+      y += 3;
+
+      if (s.mapping) {
+        sectionBar("AS-IS — Mappatura del Processo Attuale");
+        const filledSteps = s.mapping.asis.steps.filter((st) => st.nome);
+        filledSteps.forEach((step, i) => {
+          checkPage(22);
+          doc.setTextColor(...DARK);
+          doc.setFontSize(9);
+          doc.setFont("helvetica", "bold");
+          doc.text(`Passaggio ${i + 1}: ${step.nome}`, M, y);
+          y += 5;
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(8);
+          doc.setTextColor(...SLATE);
+          if (step.chi) { doc.text(`Chi: ${step.chi}`, M + 4, y); y += 4; }
+          if (step.strumenti) { doc.text(`Strumenti: ${step.strumenti}`, M + 4, y); y += 4; }
+          if (step.tempo) { doc.text(`Tempo: ${step.tempo}`, M + 4, y); y += 4; }
+          y += 2;
+        });
+        if (s.mapping.asis.painPoints) {
+          y += 2;
+          labelValue("Pain Points / Inefficienze", s.mapping.asis.painPoints);
+        }
       }
-    }
 
-    doc.addPage(); y = 0;
-    header("Agentic Design Canvas + Roadmap Sprint");
-    section("System Prompt");
-    if (s.systemPrompt) {
-      doc.setTextColor(30, 41, 59); doc.setFontSize(8); doc.setFont("helvetica", "normal");
-      const lines = doc.splitTextToSize(s.systemPrompt, W - 28).slice(0, 30);
-      doc.text(lines, 14, y); y += lines.length * 4 + 4;
-    }
-    y += 4;
+      // ─── PAGE 2: TO-BE + CONFRONTO ───
+      if (s.mapping?.tobe) {
+        newPage("TO-BE — Visione Agentificata");
+        const tobe = s.mapping.tobe;
 
-    PHASES.forEach((phase) => {
-      section(`${phase.title} — ${phase.horizon}`);
-      const p = roadmap[phase.key];
-      row("Chi fa cosa", p.chi); row("Cosa si automatizza", p.cosa); row("Strumento", p.strumento); row("KPI", p.kpi);
+        sectionBar("Analisi TO-BE — Visione Agentificata", PRIMARY);
+
+        const scoreColor: [number, number, number] = tobe.score >= 7 ? TEAL : tobe.score >= 5 ? [219, 203, 79] : [239, 68, 68];
+        doc.setFillColor(...scoreColor);
+        doc.roundedRect(M, y, 52, 9, 2, 2, "F");
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.text(`Score: ${tobe.score}/10`, M + 4, y + 6);
+
+        const approccioColor: [number, number, number] = tobe.approccio === "Augmentation" ? VIOLET : TEAL;
+        doc.setFillColor(...approccioColor);
+        doc.roundedRect(M + 57, y, 60, 9, 2, 2, "F");
+        doc.text(`Approccio: ${tobe.approccio}`, M + 61, y + 6);
+        y += 14;
+
+        labelValue("Pattern Agentico", tobe.pattern);
+        labelValue("Visione TO-BE", tobe.vision);
+        labelValue("Input dell'agente", tobe.input);
+        labelValue("Output dell'agente", tobe.output);
+        labelValue("Livello di autonomia", tobe.autonomia);
+        labelValue("Quick Win suggerito", tobe.quick_win);
+        labelValue("Timeline stimata", tobe.timeline);
+        labelValue("Rischi identificati", tobe.rischi.join(" • "));
+        y += 3;
+
+        if (tobe.confronto && tobe.confronto.length > 0) {
+          checkPage(30);
+          sectionBar("Confronto AS-IS vs. TO-BE");
+
+          const col0 = CW * 0.28, col1 = CW * 0.36, col2 = CW * 0.36;
+          doc.setFillColor(241, 245, 249);
+          doc.rect(M, y, CW, 7.5, "F");
+          doc.setTextColor(...SLATE);
+          doc.setFontSize(8);
+          doc.setFont("helvetica", "bold");
+          doc.text("Dimensione", M + 2, y + 5.5);
+          doc.text("AS-IS", M + col0 + 2, y + 5.5);
+          doc.text("TO-BE", M + col0 + col1 + 2, y + 5.5);
+          y += 8;
+
+          tobe.confronto.forEach((row, idx) => {
+            checkPage(12);
+            doc.setFillColor(...(idx % 2 === 0 ? ([255, 255, 255] as [number, number, number]) : ([248, 250, 252] as [number, number, number])));
+            doc.rect(M, y, CW, 10, "F");
+            doc.setFontSize(8);
+            doc.setFont("helvetica", "bold");
+            doc.setTextColor(...DARK);
+            doc.text(doc.splitTextToSize(row.dimensione, col0 - 4)[0] || "", M + 2, y + 6.5);
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(...SLATE);
+            doc.text(doc.splitTextToSize(row.asis, col1 - 4)[0] || "", M + col0 + 2, y + 6.5);
+            doc.setTextColor(...PRIMARY);
+            doc.text(doc.splitTextToSize(row.tobe, col2 - 4)[0] || "", M + col0 + col1 + 2, y + 6.5);
+            y += 10;
+          });
+          y += 4;
+        }
+      }
+
+      // ─── PAGE 3: AGENTIC DESIGN CANVAS + TOOL CHOICE ───
+      newPage("Agentic Design Canvas + Scelta del Tool");
+      subtitle = "Agentic Design Canvas + Scelta del Tool";
+
+      const design = s.agenticDesign;
+      const levelNames: Record<string, string> = {
+        A: "Piattaforme Hosted Enterprise (Copilot Studio, Vertex AI, Bedrock)",
+        B: "Automation Platforms (n8n, Make.com, Dify, Zapier)",
+        C: "Framework Open-Source (LangGraph, CrewAI, AutoGen)",
+        D: "SDK Vendor (Anthropic SDK, OpenAI Agents SDK, Google ADK)",
+      };
+
+      sectionBar("Agentic Design Canvas");
+
+      if (design.systemPrompt) {
+        doc.setTextColor(...SLATE);
+        doc.setFontSize(7.5);
+        doc.setFont("helvetica", "normal");
+        doc.text("System Prompt", M, y);
+        y += 3.5;
+        doc.setTextColor(...DARK);
+        doc.setFontSize(8.5);
+        const spAll = doc.splitTextToSize(design.systemPrompt, CW);
+        const spLines: string[] = spAll.slice(0, 22);
+        spLines.forEach((line: string) => {
+          checkPage(5);
+          doc.text(line, M, y);
+          y += 4;
+        });
+        if (spAll.length > 22) {
+          doc.setFontSize(7.5);
+          doc.setTextColor(...SLATE);
+          doc.text("[... testo troncato per brevità]", M, y);
+          y += 4;
+        }
+        y += 3;
+      }
+
+      const allTools = [...design.tools, ...(design.toolsCustom ? [design.toolsCustom] : [])].join(", ");
+      labelValue("Tools & Connettori", allTools);
+      labelValue("MCP Servers", design.mcpServers);
+      labelValue("Memoria a Breve Termine (STM)", design.memorySTM);
+      labelValue("Memoria a Lungo Termine (LTM)", design.memoryLTM);
+      const allGuardrails = [...design.guardrails, ...(design.guardrailsCustom ? [design.guardrailsCustom] : [])].join(", ");
+      labelValue("Guardrails", allGuardrails);
+      labelValue("Punti HITL (Human-in-the-Loop)", design.hitlPoints);
+      labelValue("Flussi Automatizzabili", design.flussiAuto);
+      y += 3;
+
+      sectionBar("Scelta del Tool — Matrice di Posizionamento", VIOLET);
+      if (s.toolChoice.primaryLevel) {
+        labelValue("Livello primario", `${s.toolChoice.primaryLevel} — ${levelNames[s.toolChoice.primaryLevel] || ""}`);
+      }
+      if (s.toolChoice.secondaryLevel) {
+        labelValue("Livello secondario (complementare)", `${s.toolChoice.secondaryLevel} — ${levelNames[s.toolChoice.secondaryLevel] || ""}`);
+      }
+      labelValue("Note sulla scelta", s.toolChoice.notes);
+
+      // ─── PAGE 4: ROADMAP SPRINT ───
+      newPage("Roadmap Sprint — Piano di Attuazione");
+      subtitle = "Roadmap Sprint — Piano di Attuazione";
+
+      const phaseColors: [number, number, number][] = [TEAL, PRIMARY, NAVY];
+      const phaseLabels = [
+        { title: "Quick Win", horizon: "0–3 mesi" },
+        { title: "Scale", horizon: "3–12 mesi" },
+        { title: "Transform", horizon: "12–24 mesi" },
+      ];
+      const phaseKeys: Array<"quickWin" | "scale" | "transform"> = ["quickWin", "scale", "transform"];
+
+      phaseKeys.forEach((key, i) => {
+        checkPage(40);
+        sectionBar(`${phaseLabels[i].title} — ${phaseLabels[i].horizon}`, phaseColors[i]);
+        const phase = s.roadmap[key];
+        labelValue("Chi fa cosa", phase.chi);
+        labelValue("Cosa si automatizza", phase.cosa);
+        labelValue("Strumento / Piattaforma", phase.strumento);
+        labelValue("Come si misura il successo (KPI)", phase.kpi);
+        y += 3;
+      });
+
+      if (s.commit30) {
+        checkPage(22);
+        doc.setFillColor(...NAVY);
+        doc.roundedRect(M, y, CW, 18, 2, 2, "F");
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.text("Il mio commit — prossimi 30 giorni", M + 4, y + 6);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8.5);
+        const commitLines: string[] = doc.splitTextToSize(s.commit30, CW - 8).slice(0, 2);
+        commitLines.forEach((line: string, ci: number) => {
+          doc.text(line, M + 4, y + 12 + ci * 4.5);
+        });
+        y += 23;
+      }
+
+      // ─── PAGE 5: RADAR CHART + AI EVALUATION ───
+      newPage("Valutazione Complessiva del Progetto Agentico");
+      subtitle = "Valutazione Complessiva del Progetto Agentico";
+
+      sectionBar("Profilo di Maturità del Progetto", PRIMARY);
       y += 2;
-    });
+      if (radarImg) {
+        doc.addImage(radarImg, "PNG", M + (CW - 110) / 2, y, 110, 110);
+        y += 115;
+      } else {
+        doc.setTextColor(...SLATE);
+        doc.setFontSize(8);
+        doc.text("(grafico non disponibile)", W / 2, y + 20, { align: "center" });
+        y += 30;
+      }
 
-    if (commit) { section("Il mio commit — prossimi 30 giorni"); row("Azione concreta", commit); }
-    doc.save(`iFAB_Agentic_${(proc?.name || "Roadmap").replace(/\s+/g, "_")}.pdf`);
-    setExported(true); setTimeout(() => setExported(false), 3000);
+      const axisLabels = ["Fattibilità Tecnica", "Impatto Atteso", "Velocità Deploy", "Governance & Sicurezza", "Completezza Progetto"];
+      const boxW = (CW - 8) / 5;
+      axisLabels.forEach((label, i) => {
+        const bx = M + i * (boxW + 2);
+        const scoreVal = radarScores[i];
+        const bColor: [number, number, number] = scoreVal >= 7 ? TEAL : scoreVal >= 4 ? [219, 203, 79] : [239, 68, 68];
+        doc.setFillColor(...bColor);
+        doc.roundedRect(bx, y, boxW, 14, 1.5, 1.5, "F");
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.text(`${scoreVal.toFixed(1)}`, bx + boxW / 2, y + 7, { align: "center" });
+        doc.setFontSize(6);
+        doc.setFont("helvetica", "normal");
+        const llines: string[] = doc.splitTextToSize(label, boxW - 2);
+        llines.slice(0, 2).forEach((ll: string, li: number) => {
+          doc.text(ll, bx + boxW / 2, y + 11 + li * 3, { align: "center" });
+        });
+      });
+      y += 20;
+
+      if (evaluation.valutazione || (evaluation.punti_di_forza?.length ?? 0) > 0) {
+        y += 4;
+        sectionBar("Valutazione AI del Progetto", VIOLET);
+
+        labelValue("Valutazione complessiva", evaluation.valutazione || "");
+
+        if ((evaluation.punti_di_forza?.length ?? 0) > 0) {
+          checkPage(20);
+          doc.setTextColor(...SLATE);
+          doc.setFontSize(7.5);
+          doc.setFont("helvetica", "normal");
+          doc.text("Punti di forza", M, y);
+          y += 4;
+          evaluation.punti_di_forza!.forEach((pt) => {
+            checkPage(8);
+            doc.setTextColor(...TEAL);
+            doc.setFontSize(10);
+            doc.text("✓", M, y);
+            doc.setTextColor(...DARK);
+            doc.setFontSize(9);
+            const ptLines: string[] = doc.splitTextToSize(pt, CW - 8);
+            ptLines.slice(0, 2).forEach((l: string) => {
+              doc.text(l, M + 7, y);
+              y += 4.5;
+            });
+          });
+          y += 3;
+        }
+
+        if ((evaluation.rischi?.length ?? 0) > 0) {
+          checkPage(20);
+          doc.setTextColor(...SLATE);
+          doc.setFontSize(7.5);
+          doc.setFont("helvetica", "normal");
+          doc.text("Rischi da presidiare", M, y);
+          y += 4;
+          evaluation.rischi!.forEach((r) => {
+            checkPage(8);
+            doc.setTextColor(239, 68, 68);
+            doc.setFontSize(10);
+            doc.text("!", M + 1, y);
+            doc.setTextColor(...DARK);
+            doc.setFontSize(9);
+            const rLines: string[] = doc.splitTextToSize(r, CW - 8);
+            rLines.slice(0, 2).forEach((l: string) => {
+              doc.text(l, M + 7, y);
+              y += 4.5;
+            });
+          });
+          y += 3;
+        }
+
+        if (evaluation.raccomandazione) {
+          checkPage(22);
+          doc.setFillColor(235, 247, 255);
+          doc.roundedRect(M, y, CW, 18, 2, 2, "F");
+          doc.setTextColor(...NAVY);
+          doc.setFontSize(8);
+          doc.setFont("helvetica", "bold");
+          doc.text("Raccomandazione principale", M + 4, y + 5.5);
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(...DARK);
+          const recLines: string[] = doc.splitTextToSize(evaluation.raccomandazione, CW - 8).slice(0, 2);
+          recLines.forEach((l: string, ri: number) => {
+            doc.text(l, M + 4, y + 10.5 + ri * 4.5);
+          });
+          y += 22;
+        }
+      }
+
+      doc.setTextColor(...SLATE);
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "normal");
+      doc.text(
+        `Generato da iFAB Agentic Platform · ${new Date().toLocaleDateString("it-IT")}`,
+        W / 2,
+        290,
+        { align: "center" }
+      );
+
+      doc.save(`iFAB_Agentic_${(proc?.name || "Roadmap").replace(/\s+/g, "_")}.pdf`);
+      setExported(true);
+      setTimeout(() => setExported(false), 3000);
+    } finally {
+      setExporting(false);
+    }
   };
 
   if (locked) {
@@ -243,7 +713,6 @@ export default function RoadmapPage() {
 
   return (
     <div className="w-full max-w-[1400px] mx-auto px-4 py-6">
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <span className="bg-deepblue text-white text-sm font-bold w-8 h-8 rounded-full flex items-center justify-center shrink-0">5</span>
@@ -257,10 +726,8 @@ export default function RoadmapPage() {
         </button>
       </div>
 
-      {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-5 items-start">
 
-        {/* ── Roadmap column ── */}
         <div className="flex flex-col gap-4">
           {PHASES.map((phase) => (
             <div key={phase.key} className={`bg-white rounded-xl shadow-sm border-l-4 ${phase.color} border border-slate-200 p-5`}>
@@ -287,7 +754,6 @@ export default function RoadmapPage() {
             </div>
           ))}
 
-          {/* Commit */}
           <div className="bg-navy rounded-xl p-5">
             <h2 className="font-bold text-white mb-1">Il mio commit — prossimi 30 giorni</h2>
             <p className="text-white/60 text-xs mb-3">Una sola azione concreta e misurabile. Non &quot;esplorare&quot;, non &quot;valutare&quot;.</p>
@@ -299,7 +765,6 @@ export default function RoadmapPage() {
             />
           </div>
 
-          {/* Navigation */}
           <div className="flex items-center justify-between pt-1">
             <a href="/tool-selection" className="text-sm text-slate hover:text-navy">← Scelta del Tool</a>
             <div className="flex gap-3">
@@ -308,15 +773,21 @@ export default function RoadmapPage() {
               </button>
               <button
                 onClick={exportPDF}
-                className={`px-6 py-2.5 rounded-lg font-semibold text-sm transition-colors ${exported ? "bg-green-500 text-white" : "bg-navy text-white hover:bg-deepblue"}`}
+                disabled={exporting}
+                className={`px-6 py-2.5 rounded-lg font-semibold text-sm transition-colors ${
+                  exported
+                    ? "bg-green-500 text-white"
+                    : exporting
+                    ? "bg-slate-300 text-slate cursor-not-allowed"
+                    : "bg-navy text-white hover:bg-deepblue"
+                }`}
               >
-                {exported ? "PDF scaricato!" : "Esporta PDF"}
+                {exported ? "PDF scaricato!" : exporting ? "Generazione in corso..." : "Esporta PDF"}
               </button>
             </div>
           </div>
         </div>
 
-        {/* ── Chat column ── */}
         <div className="lg:sticky lg:top-4 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col min-h-[500px] lg:max-h-[calc(100vh-5rem)]">
           <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 shrink-0">
             <span className="w-2 h-2 rounded-full bg-deepblue shrink-0 animate-pulse" />
