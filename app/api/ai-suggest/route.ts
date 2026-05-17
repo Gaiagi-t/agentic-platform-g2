@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { openaiErrorResponse } from "@/lib/openai-error";
+import { withRetry } from "@/lib/openai-retry";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -46,7 +47,7 @@ Rispondi SOLO con un oggetto JSON valido con questa struttura:
 }`;
 
   try {
-    const completion = await client.chat.completions.create({
+    const completion = await withRetry(() => client.chat.completions.create({
       model: "gpt-4o-mini",
       max_tokens: 1800,
       messages: [
@@ -58,7 +59,7 @@ Rispondi SOLO con un oggetto JSON valido con questa struttura:
         },
         { role: "user", content: userPrompt },
       ],
-    });
+    }));
 
     const text = completion.choices[0]?.message?.content ?? "";
     const clean = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();

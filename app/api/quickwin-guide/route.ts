@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import type { AIAnalysis, ToolChoice, RoadmapPhase } from "@/lib/types";
 import { openaiErrorResponse, openaiStreamError } from "@/lib/openai-error";
+import { withRetry } from "@/lib/openai-retry";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -75,8 +76,7 @@ PATTERN AGENTICO: ${analysis?.pattern || "N/D"}`;
 
   let stream: AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>;
   try {
-    // eslint-disable-next-line @typescript-eslint/await-thenable
-    stream = await client.chat.completions.create({
+    stream = await withRetry(() => client.chat.completions.create({
       model: "gpt-4.1",
       max_tokens: 1800,
       stream: true,
@@ -84,7 +84,7 @@ PATTERN AGENTICO: ${analysis?.pattern || "N/D"}`;
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-    });
+    }));
   } catch (e: unknown) {
     return openaiErrorResponse(e);
   }

@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import type { AIAnalysis, AgenticDesign, ToolChoice, RoadmapPhase } from "@/lib/types";
 import { openaiErrorResponse, openaiStreamError } from "@/lib/openai-error";
+import { withRetry } from "@/lib/openai-retry";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -107,8 +108,7 @@ Quando suggerisci un valore specifico per un campo della roadmap, segnalalo con:
 
   let stream: AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>;
   try {
-    // eslint-disable-next-line @typescript-eslint/await-thenable
-    stream = await client.chat.completions.create({
+    stream = await withRetry(() => client.chat.completions.create({
       model: "gpt-4o",
       max_tokens: 900,
       stream: true,
@@ -116,7 +116,7 @@ Quando suggerisci un valore specifico per un campo della roadmap, segnalalo con:
         { role: "system", content: systemPrompt },
         ...messages,
       ],
-    });
+    }));
   } catch (e: unknown) {
     return openaiErrorResponse(e);
   }

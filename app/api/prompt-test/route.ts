@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { openaiErrorResponse, openaiStreamError } from "@/lib/openai-error";
+import { withRetry } from "@/lib/openai-retry";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -12,8 +13,7 @@ export async function POST(request: Request) {
 
   let stream: AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>;
   try {
-    // eslint-disable-next-line @typescript-eslint/await-thenable
-    stream = await client.chat.completions.create({
+    stream = await withRetry(() => client.chat.completions.create({
       model: "gpt-4o-mini",
       max_tokens: 1024,
       stream: true,
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
         { role: "system", content: systemPrompt },
         { role: "user", content: testMessage },
       ],
-    });
+    }));
   } catch (e: unknown) {
     return openaiErrorResponse(e);
   }

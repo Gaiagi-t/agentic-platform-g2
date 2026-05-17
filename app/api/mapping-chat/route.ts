@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import type { ASISStep, AIAnalysis } from "@/lib/types";
 import { openaiErrorResponse, openaiStreamError } from "@/lib/openai-error";
+import { withRetry } from "@/lib/openai-retry";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -58,8 +59,7 @@ Campi modificabili: pattern, vision, input, output, autonomia, rischi, fattibili
 
   let stream: AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>;
   try {
-    // eslint-disable-next-line @typescript-eslint/await-thenable
-    stream = await client.chat.completions.create({
+    stream = await withRetry(() => client.chat.completions.create({
       model: "gpt-4o-mini",
       max_tokens: 800,
       stream: true,
@@ -67,7 +67,7 @@ Campi modificabili: pattern, vision, input, output, autonomia, rischi, fattibili
         { role: "system", content: systemPrompt },
         ...messages,
       ],
-    });
+    }));
   } catch (e: unknown) {
     return openaiErrorResponse(e);
   }

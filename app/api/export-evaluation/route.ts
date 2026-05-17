@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import type { AIAnalysis, AgenticDesign, ToolChoice, RoadmapPhase } from "@/lib/types";
 import { openaiErrorResponse } from "@/lib/openai-error";
+import { withRetry } from "@/lib/openai-retry";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -63,7 +64,7 @@ Rispondi SOLO con un oggetto JSON valido, senza markdown né testo aggiuntivo:
 }`;
 
   try {
-    const completion = await client.chat.completions.create({
+    const completion = await withRetry(() => client.chat.completions.create({
       model: "gpt-4.1",
       max_tokens: 700,
       response_format: { type: "json_object" },
@@ -75,7 +76,7 @@ Rispondi SOLO con un oggetto JSON valido, senza markdown né testo aggiuntivo:
         },
         { role: "user", content: userPrompt },
       ],
-    });
+    }));
     const json = JSON.parse(completion.choices[0].message.content || "{}");
     return Response.json(json);
   } catch (e: unknown) {
