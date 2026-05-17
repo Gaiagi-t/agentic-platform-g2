@@ -186,6 +186,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 
 function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxW: number, lh: number, maxL = 99): number {
   if (!text) return y;
+  ctx.textAlign = "left";
   const words = text.split(" ");
   let line = "";
   let drawn = 0;
@@ -701,6 +702,7 @@ export default function RoadmapPage() {
 
       // === COLUMN 1: Processo + TO-BE + Tool ===
       const c1x = 40, c1w = 460; let c1y = 106;
+      ctx.textAlign = "left";
 
       c1y = drawSectionBar(ctx, "PROCESSO", c1x, c1y, c1w, CNAV) + 4;
       ctx.fillStyle = CDARK; ctx.font = "bold 17px Arial"; ctx.textAlign = "left";
@@ -772,6 +774,7 @@ export default function RoadmapPage() {
 
       // === COLUMN 3: Roadmap ===
       const c3x = 1420, c3w = 460; let c3y = 106;
+      ctx.textAlign = "left";
       c3y = drawSectionBar(ctx, "ROADMAP SPRINT", c3x, c3y, c3w, CNAV) + 10;
 
       const phDefs = [
