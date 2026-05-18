@@ -276,11 +276,11 @@ export default function PortfolioPage() {
       {analyzedProcesses.length > 0 && (
         <div className="mb-8">
           <h2 className="text-sm font-bold text-navy uppercase tracking-wide mb-1">Quale processo vuoi agentificare oggi?</h2>
-          <p className="text-xs text-slate mb-4">Scegli liberamente — il Consigliato è il Quick Win, ma puoi lavorare su qualsiasi processo.</p>
+          <p className="text-xs text-slate mb-4">Scegli liberamente — il Consigliato è l&apos;Investimento Strategico, ma puoi lavorare su qualsiasi processo.</p>
           <div className="flex flex-col gap-3">
             {analyzedProcesses.map((p) => {
               const q = QUADRANTS.find((q) => q.impatto === p.impatto && q.facilita === p.facilita)!;
-              const isQuickWin = p.impatto === "alto" && p.facilita === "facile";
+              const isInvestimento = p.impatto === "alto" && p.facilita === "difficile";
               const isSelected = selected === p.id;
               return (
                 <button
@@ -298,7 +298,7 @@ export default function PortfolioPage() {
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <span className={`font-semibold text-sm ${isSelected ? "text-navy" : "text-slate-800"}`}>{p.name}</span>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${q.badge}`}>{q.label}</span>
-                        {isQuickWin && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500 text-white">✦ Consigliato</span>}
+                        {isInvestimento && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary text-white">✦ Consigliato</span>}
                       </div>
                       {p.aiExplanation && (
                         <p className="text-xs text-slate leading-snug">{p.aiExplanation}</p>
