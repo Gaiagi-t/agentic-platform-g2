@@ -6,7 +6,13 @@ import { getState, setState } from "@/lib/store";
 import type { ASISStep, AIAnalysis, Mapping } from "@/lib/types";
 
 // ── Constants ──────────────────────────────────────────────────────────
-const PATTERNS = ["Single Agent", "Routing", "Parallelizzazione", "Orchestrazione", "HITL by Design"];
+const PATTERNS = [
+  { id: "Single Agent",     desc: "Task autonomo ben delimitato, un solo obiettivo" },
+  { id: "Prompt Chain",     desc: "Step sequenziali: output di un agente diventa input del successivo" },
+  { id: "Routing",          desc: "L'agente smista l'input verso il sotto-agente giusto" },
+  { id: "Parallelizzazione",desc: "Task indipendenti eseguiti in contemporanea, poi sintetizzati" },
+  { id: "HITL by Design",   desc: "Autonomia parziale, l'umano approva nelle decisioni critiche" },
+];
 const emptyStep = (): ASISStep => ({ nome: "", chi: "", strumenti: "", tempo: "" });
 
 const DEMO_STEPS: ASISStep[] = [
@@ -40,9 +46,12 @@ const DEMO_ANALYSIS: AIAnalysis = {
 type ChatMsg = { role: "user" | "assistant"; content: string };
 
 function welcomeMessage(processName: string, analysis: AIAnalysis): ChatMsg {
+  const patternStr = (analysis.patterns?.length ?? 0) > 1
+    ? analysis.patterns!.join(" + ")
+    : analysis.pattern;
   return {
     role: "assistant",
-    content: `Ho generato la visione TO-BE per "${processName}": pattern ${analysis.pattern}, autonomia ${analysis.autonomia}, score ${analysis.score}/10.\n\nPuoi chiedermi di approfondire un aspetto, esplorare rischi, confrontare pattern alternativi o raffinare il quick win. Come vuoi procedere?`,
+    content: `Ho generato la visione TO-BE per "${processName}": pattern ${patternStr}, autonomia ${analysis.autonomia}, score ${analysis.score}/10.\n\nPuoi chiedermi di approfondire un aspetto, esplorare rischi, confrontare pattern alternativi o raffinare il quick win. Come vuoi procedere?`,
   };
 }
 
@@ -401,17 +410,66 @@ export default function MappingPage() {
             <span className={`ml-auto text-sm font-bold px-2 py-0.5 rounded-full ${analysis.score >= 7 ? "bg-green-100 text-green-700" : analysis.score >= 5 ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-600"}`}>Score: {analysis.score}/10</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div>
-              <p className="text-xs font-bold text-slate uppercase mb-1">Pattern agentico</p>
-              <select value={analysis.pattern} onChange={(e) => setAnalysis({ ...analysis, pattern: e.target.value })} className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-primary">
-                {PATTERNS.map((p) => <option key={p}>{p}</option>)}
-              </select>
+          {/* Pattern agentico — multi-select chips */}
+          <div className="mb-4">
+            <p className="text-xs font-bold text-slate uppercase mb-2">Pattern agentico <span className="font-normal normal-case text-slate/60">(seleziona uno o più)</span></p>
+            <div className="flex flex-wrap gap-2">
+              {PATTERNS.map(({ id, desc }) => {
+                const active = (analysis.patterns ?? [analysis.pattern]).includes(id);
+                const toggle = () => {
+                  const current = analysis.patterns ?? [analysis.pattern];
+                  const next = active
+                    ? current.filter((x) => x !== id)
+                    : [...current, id];
+                  if (next.length === 0) return;
+                  setAnalysis({ ...analysis, patterns: next, pattern: next[0] });
+                };
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    title={desc}
+                    onClick={toggle}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                      active
+                        ? "bg-primary text-white border-primary shadow-sm"
+                        : "bg-white text-slate-600 border-slate-200 hover:border-primary hover:text-primary"
+                    }`}
+                  >
+                    {active && <span className="text-[10px]">✓</span>}
+                    {id}
+                  </button>
+                );
+              })}
             </div>
-            <div>
-              <p className="text-xs font-bold text-slate uppercase mb-1">Livello autonomia</p>
-              <input value={analysis.autonomia} onChange={(e) => setAnalysis({ ...analysis, autonomia: e.target.value })} className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-primary" />
-            </div>
+
+            {/* Note campo — visibile solo con 2+ pattern selezionati */}
+            {(analysis.patterns?.length ?? 0) > 1 && (
+              <div className="mt-3">
+                <p className="text-xs font-bold text-slate uppercase mb-1">
+                  Dove si applica ciascun pattern nel flusso?
+                </p>
+                <div className="flex items-start gap-1.5">
+                  <textarea
+                    value={analysis.patternNote ?? ""}
+                    onChange={(e) => setAnalysis({ ...analysis, patternNote: e.target.value })}
+                    placeholder={`es. "${analysis.patterns?.[0]}" gestisce la fase di raccolta dati → "${analysis.patterns?.[1]}" per l'elaborazione finale…`}
+                    rows={3}
+                    className={`flex-1 border rounded px-2 py-1.5 text-sm resize-none focus:outline-none focus:border-primary transition-colors ${isRec("pattern-note") ? "border-red-300 bg-red-50/30" : "border-slate-200"}`}
+                  />
+                  <MicBtn
+                    active={isRec("pattern-note")}
+                    loading={isLoad("pattern-note")}
+                    onClick={() => toggleMic("pattern-note", analysis.patternNote ?? "", (v) => setAnalysis((a) => a ? { ...a, patternNote: v } : a))}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="mb-4">
+            <p className="text-xs font-bold text-slate uppercase mb-1">Livello autonomia</p>
+            <input value={analysis.autonomia} onChange={(e) => setAnalysis({ ...analysis, autonomia: e.target.value })} className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-primary" />
           </div>
 
           {/* Approccio toggle */}

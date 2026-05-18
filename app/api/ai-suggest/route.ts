@@ -26,7 +26,7 @@ PAIN POINTS: ${painPoints}
 
 Rispondi SOLO con un oggetto JSON valido con questa struttura:
 {
-  "pattern": "uno tra: Single Agent | Routing | Parallelizzazione | Orchestrazione | HITL by Design",
+  "pattern": "uno tra: Single Agent | Prompt Chain | Routing | Parallelizzazione | HITL by Design",
   "vision": "descrizione in 2-3 frasi della versione agentificata del processo",
   "input": "cosa riceve l'agente come input",
   "output": "cosa produce l'agente come output",

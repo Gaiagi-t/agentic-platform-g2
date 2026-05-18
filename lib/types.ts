@@ -24,6 +24,8 @@ export interface ComparisoRow {
 
 export interface AIAnalysis {
   pattern: string;
+  patterns?: string[];
+  patternNote?: string;
   vision: string;
   input: string;
   output: string;
